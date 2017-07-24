@@ -45,6 +45,9 @@ sim_t::sim_t(const char* isa, size_t nprocs, bool halted, reg_t start_pc,
 
   clint.reset(new clint_t(procs));
   bus.add_device(CLINT_BASE, clint.get());
+  
+  pfa.reset(new pfa_t(this));
+  bus.add_device(PFA_BASE, pfa.get());
 }
 
 sim_t::~sim_t()
@@ -299,6 +302,17 @@ void sim_t::make_dtb()
          "      reg = <0x" << (clintbs >> 32) << " 0x" << (clintbs & (uint32_t)-1) <<
                      " 0x" << (clintsz >> 32) << " 0x" << (clintsz & (uint32_t)-1) << ">;\n"
          "    };\n"
+  //        "    clint@" << CLINT_BASE << " {\n"
+  //        "      compatible = \"riscv,clint0\";\n"
+  //        "      interrupts-extended = <" << std::dec;
+  // for (size_t i = 0; i < procs.size(); i++)
+  //   s << "&CPU" << i << "_intc 3 &CPU" << i << "_intc 7 ";
+  // reg_t clintbs = CLINT_BASE;
+  // reg_t clintsz = CLINT_SIZE;
+  // s << std::hex << ">;\n"
+  //        "      reg = <0x" << (clintbs >> 32) << " 0x" << (clintbs & (uint32_t)-1) <<
+  //                    " 0x" << (clintsz >> 32) << " 0x" << (clintsz & (uint32_t)-1) << ">;\n"
+  //        "    };\n"
          "  };\n"
          "};\n";
 

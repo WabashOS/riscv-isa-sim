@@ -151,6 +151,8 @@
 #define IRQ_HOST     13
 
 #define DEFAULT_RSTVEC     0x00001000
+#define PFA_BASE           0x00002000
+#define PFA_SIZE           0x00001000
 #define CLINT_BASE         0x02000000
 #define CLINT_SIZE         0x000c0000
 #define EXT_IO_BASE        0x40000000
@@ -166,6 +168,8 @@
 #define PTE_A     0x040 // Accessed
 #define PTE_D     0x080 // Dirty
 #define PTE_SOFT  0x300 // Reserved for Software
+// #define PTE_REM   (1l << 48) #<{(| Remote for PFA |)}>#
+#define PTE_REM   0x100 //This is using a SW reserved bit, Linux might not like it
 
 #define PTE_PPN_SHIFT 10
 

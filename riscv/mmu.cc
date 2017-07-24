@@ -95,8 +95,9 @@ void mmu_t::load_slow_path(reg_t addr, reg_t len, uint8_t* bytes)
     memcpy(bytes, host_addr, len);
     if (tracer.interested_in_range(paddr, paddr + PGSIZE, LOAD))
       tracer.trace(paddr, len, LOAD);
-    else
+    else {
       refill_tlb(addr, paddr, host_addr, LOAD);
+    }
   } else if (!sim->mmio_load(paddr, len, bytes)) {
     throw trap_load_access_fault(addr);
   }
@@ -186,6 +187,19 @@ reg_t mmu_t::walk(reg_t addr, access_type type, reg_t mode)
 
     reg_t pte = vm.ptesize == 4 ? *(uint32_t*)ppte : *(uint64_t*)ppte;
     reg_t ppn = pte >> PTE_PPN_SHIFT;
+
+    /* Check for remote page */
+    if (pte & PTE_REM) {
+      pfa_info("Saw remote page\n");
+      reg_t paddr = sim->pfa->fetch_page(addr, (reg_t*)ppte);
+      if(paddr == 0) {
+        fprintf(stderr, "SPIKE: PFA couldn't find vaddr (%ld) but it was marked remote!\n", addr);
+        throw trap_load_access_fault(addr);
+      }
+      *(uint64_t*)ppte &= ~PTE_REM;
+      pte = *(uint64_t*)ppte;
+      ppn = pte >> PTE_PPN_SHIFT;
+    }
 
     if (PTE_TABLE(pte)) { // next level of page table
       base = ppn << PGSHIFT;
