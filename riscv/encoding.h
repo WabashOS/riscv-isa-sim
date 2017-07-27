@@ -168,8 +168,8 @@
 #define PTE_A     0x040 // Accessed
 #define PTE_D     0x080 // Dirty
 #define PTE_SOFT  0x300 // Reserved for Software
-// #define PTE_REM   (1l << 48) #<{(| Remote for PFA |)}>#
-#define PTE_REM   0x100 //This is using a SW reserved bit, Linux might not like it
+#define PTE_REM   (1l << 63) // Remote for PFA (uses reserved high-bits)
+// #define PTE_REM   0x100 //This is using a SW reserved bit, Linux might not like it
 
 #define PTE_PPN_SHIFT 10
 

@@ -4,8 +4,8 @@
 #include "devices.h"
 #include "encoding.h"
 
-//#define pfa_info(M, ...) printf("SPIKE PFA: " M, ##__VA_ARGS__)
-#define pfa_info(M, ...)
+#define pfa_info(M, ...) printf("SPIKE PFA: " M, ##__VA_ARGS__)
+// #define pfa_info(M, ...)
 
 /* Register Offsets 
  * PFA_BASE in encoding.h contains the physical address where the device is mapped.
@@ -58,6 +58,12 @@ class pfa_t : public abstract_device_t {
      */
     bool evict_page(const uint8_t *bytes);
 
+    /* Reports the status of the last evicted page. In spike, this always
+     * 0 the first time, and vaddr the second to fully test polling.
+     *
+     * bytes <- vaddr of last evicted page or 0 if eviction in progress.
+     */
+    bool check_evict_status(uint8_t *bytes);
 
     /* Enqueu a free frame to be used on the next page fault 
      * bytes: paddr of frame. */
@@ -68,6 +74,14 @@ class pfa_t : public abstract_device_t {
     std::queue<reg_t> freeq;
     std::queue<reg_t> newq;
     rmem_t rmem;
+
+    /* Used to implement state for check_evict_status which needs to pretend
+     * that eviction takes time. */
+    bool  evict_status = false;
+
+    /* Used to implement the state for evict_page. false->waiting for vaddr.
+     * true->waiting for pte */
+    bool  evict_page_state = false;
 
     /* Eviction requires two stores to PFA_EVICTPAGE, first is the vaddr of the
      * page to be evicted, second is paddr of pte. We store them here across
