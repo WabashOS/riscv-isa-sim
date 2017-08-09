@@ -191,14 +191,25 @@ reg_t mmu_t::walk(reg_t addr, access_type type, reg_t mode)
     /* Check for remote page */
     if (pte & PTE_REM) {
       pfa_info("Saw remote page\n");
-      reg_t paddr = sim->pfa->fetch_page(addr, (reg_t*)ppte);
-      if(paddr == 0) {
-        fprintf(stderr, "SPIKE: PFA couldn't find vaddr (%ld) but it was marked remote!\n", addr);
-        throw trap_load_access_fault(addr);
-      }
-      *(uint64_t*)ppte &= ~PTE_REM;
-      pte = *(uint64_t*)ppte;
-      ppn = pte >> PTE_PPN_SHIFT;
+      pfa_err_t pfa_res = sim->pfa->fetch_page(addr, (reg_t*)ppte);
+      switch(pfa_res) {
+        /* PFA fetched the page, resume normal MMU operation */
+        case PFA_OK:
+          *(uint64_t*)ppte &= ~PTE_REM;
+          pte = *(uint64_t*)ppte;
+          ppn = pte >> PTE_PPN_SHIFT;
+          break;
+      
+        /* recoverable PFA error, throw page fault to OS */
+        case PFA_NO_FREE:
+        case PFA_NO_NEW:
+          goto fail;
+
+        /* Illegal behavior error, throw error to OS */
+        case PFA_NO_PAGE:
+          pfa_err("couldn't find vaddr (%ld) but it was marked remote!\n", addr);
+          throw trap_load_access_fault(addr);
+      } 
     }
 
     if (PTE_TABLE(pte)) { // next level of page table

@@ -10,15 +10,19 @@ bool pfa_t::load(reg_t addr, size_t len, uint8_t* bytes)
 
   switch(addr) {
     case PFA_FREEFRAME:
-      fprintf(stderr, "SPIKE: Cannot load from PFA_FREEPAGE");
+      pfa_err("Cannot load from PFA_FREEPAGE");
       return false;
+    case PFA_FREESTAT:
+      return free_check_size(bytes);
     case PFA_EVICTPAGE:
       return check_evict_status(bytes);
+    case PFA_EVICTSTAT:
+      return evict_check_size(bytes);
     case PFA_NEWPAGE:
       reg_t val;
       return pop_newpage(bytes);
     default:
-      fprintf(stderr, "SPIKE: Unrecognized load to PFA offset %ld\n", addr);
+      pfa_err("Unrecognized load to PFA offset %ld\n", addr);
       return false;
   }
 
@@ -34,13 +38,19 @@ bool pfa_t::store(reg_t addr, size_t len, const uint8_t* bytes)
   switch(addr) {
     case PFA_FREEFRAME:
       return free_frame(bytes);
+    case PFA_FREESTAT:
+      pfa_err("Cannot store to FREESTAT\n");
+      return false;
     case PFA_EVICTPAGE:
       return evict_page(bytes);
+    case PFA_EVICTSTAT:
+      pfa_err("Cannot store to EVICTSTAT\n");
+      return false;
     case PFA_NEWPAGE:
-      fprintf(stderr, "SPIKE: cannot store to PFA_NEWFRAME\n");
+      pfa_err("Cannot store to PFA_NEWFRAME\n");
       return false;
     default:
-      fprintf(stderr, "SPIKE: Unrecognized store to PFA offset %ld\n", addr);
+      pfa_err("Unrecognized store to PFA offset %ld\n", addr);
       return false;
   }
 
@@ -48,40 +58,44 @@ bool pfa_t::store(reg_t addr, size_t len, const uint8_t* bytes)
   return true;
 }
 
-reg_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
+pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
 {
+  /* Basic feasibility checks */
+  if(freeq.empty()){
+    pfa_info("No available free frames\n");
+    return PFA_NO_FREE;
+  }
+  if(newq.size() == PFA_NEW_MAX) {
+    pfa_info("No free slots in new page queue\n");
+    return PFA_NO_NEW;
+  }
+  
   /* Get the remote page (if it exists) */
   rmem_t::iterator ri = rmem.find(vaddr);
   if(ri == rmem.end()) {
     /* not found */
-    fprintf(stderr, "SPIKE: requested vaddr (%ld) not in remote memory\n", vaddr);
-    return 0;
+    pfa_err("Requested vaddr (%ld) not in remote memory\n", vaddr);
+    return PFA_NO_PAGE;
   }
 
-  /* Get free frame */
-  if(freeq.empty()) {
-    fprintf(stderr, "SPIKE: PFA no available free frames\n");
-    return 0;
-  } else {
-    reg_t paddr = freeq.front();
-    freeq.pop();
+  reg_t paddr = freeq.front();
+  freeq.pop();
 
-    /* Change the ppn in the pte */
-    *host_pte = (*host_pte & ~(~0ul << PTE_PPN_SHIFT)) |
-                ((paddr >> 12) << PTE_PPN_SHIFT);
-    
-    pfa_info("fetching vaddr (0x%lx) into paddr (0x%lx), pte=0x%lx\n", vaddr, paddr, *host_pte);
+  /* Change the ppn in the pte */
+  *host_pte = (*host_pte & ~(~0ul << PTE_PPN_SHIFT)) |
+              ((paddr >> 12) << PTE_PPN_SHIFT);
+  
+  pfa_info("fetching vaddr (0x%lx) into paddr (0x%lx), pte=0x%lx\n", vaddr, paddr, *host_pte);
 
-    /* Copy over remote data into new frame */
-    void *host_page = (void*)sim->addr_to_mem(paddr);
-    memcpy(host_page, ri->second, 4096);
-    
-    newq.push(vaddr);
-    /* Free the rmem buffer */
-    delete [] ri->second;
+  /* Copy over remote data into new frame */
+  void *host_page = (void*)sim->addr_to_mem(paddr);
+  memcpy(host_page, ri->second, 4096);
+  
+  newq.push(vaddr);
+  /* Free the rmem buffer */
+  delete [] ri->second;
 
-    return paddr;
-  }
+  return PFA_OK;
 }
 
 bool pfa_t::pop_newpage(uint8_t *bytes)
@@ -96,6 +110,14 @@ bool pfa_t::pop_newpage(uint8_t *bytes)
 
   pfa_info("Reporting newpage at 0x%lx\n", vaddr);
   memcpy(bytes, &vaddr, sizeof(reg_t));
+  return true;
+}
+
+bool pfa_t::evict_check_size(uint8_t *bytes)
+{
+  /* We currently can't model the asynchrony of eviction so we just provide
+   * an evict q of length 1 and evict synchronously. */
+  *((reg_t*)bytes) = 1;
   return true;
 }
 
@@ -157,12 +179,24 @@ bool pfa_t::check_evict_status(uint8_t *bytes)
   return true;
 }
 
+bool pfa_t::free_check_size(uint8_t *bytes)
+{
+  *((reg_t*)bytes) = PFA_FREE_MAX - freeq.size();
+  return true;
+}
+
 bool pfa_t::free_frame(const uint8_t *bytes)
 {
-  reg_t paddr;
-  memcpy(&paddr, bytes, sizeof(reg_t));
-  pfa_info("Adding paddr 0x%lx to list of free frames\n", paddr);
-  freeq.push(paddr);
-  return true;
+  if(freeq.size() <= PFA_FREE_MAX) {
+    reg_t paddr;
+    memcpy(&paddr, bytes, sizeof(reg_t));
+    pfa_info("Adding paddr 0x%lx to list of free frames\n", paddr);
+    freeq.push(paddr);
+    return true;
+  } else {
+    pfa_err("Attempted to push to full free queue\n");
+    return false;
+  }
+
 }
 
