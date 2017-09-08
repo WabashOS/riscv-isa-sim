@@ -7,24 +7,24 @@ like page-replacement policies are handled asynchronously by the OS.
 
 ## Basic Usage
 1. Eviction:
-  1. The OS identifies pages that should be stored remotely.
-  1. It evicts them explicitly by writing to the evict queue.
-  1. The OS marks the remote bit in the relevant PTE
+    1. The OS identifies pages that should be stored remotely.
+    1. It evicts them explicitly by writing to the evict queue.
+    1. The OS marks the remote bit in the relevant PTE
 1. Provide Free Frames:
-  1. The OS identifies one or more physical frames that can be used to house
-     newly fetched pages.
-  1. It gives them to the PFA through the free queue.
+    1. The OS identifies one or more physical frames that can be used to house
+       newly fetched pages.
+    1. It gives them to the PFA through the free queue.
 1. Page Fault:
-  1. Application code issues a load/store for the (now remote) page.
-  1. The PFA automatically and synchronously brings the page from remote memory
-     and stores it in a free frame.
-  1. The PFA clears the remote bit in the pte.
-  1. The PFA pushes the virtual address of the fetched page to the new page
-     queue.
-  1. The application is restarted.
+    1. Application code issues a load/store for the (now remote) page.
+    1. The PFA automatically and synchronously brings the page from remote memory
+       and stores it in a free frame.
+    1. The PFA clears the remote bit in the pte.
+    1. The PFA pushes the virtual address of the fetched page to the new page
+       queue.
+    1. The application is restarted.
 1. New Page Management
-  1. The OS periodically queries the new page queue and performs any necessary
-     bookkeeping.
+    1. The OS periodically queries the new page queue and performs any necessary
+       bookkeeping.
 
 ## Free Frame and New Page Queue Management
 The OS should ensure that there are sufficient free frames in the free queue to
