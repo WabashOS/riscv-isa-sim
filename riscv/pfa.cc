@@ -85,7 +85,8 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   *host_pte = (*host_pte & ~(~0ul << PTE_PPN_SHIFT)) |
               ((paddr >> 12) << PTE_PPN_SHIFT);
   
-  pfa_info("fetching vaddr (0x%lx) into paddr (0x%lx), pte=0x%lx\n", vaddr, paddr, *host_pte);
+  pfa_info("fetching vaddr (0x%lx) into paddr (0x%lx), pte=0x%lx\n",
+      vaddr, paddr, *host_pte);
 
   /* Copy over remote data into new frame */
   void *host_page = (void*)sim->addr_to_mem(paddr);
@@ -140,7 +141,7 @@ bool pfa_t::evict_page(const uint8_t *bytes)
 
     rmem.insert(std::pair<reg_t, uint8_t*>(evict_vaddr, page_val));
 
-    pfa_info("Evicting page at vaddr 0x%lx (pte=0x%lx)\n", evict_vaddr, *host_pte);
+    pfa_info("Evicting page at vaddr 0x%lx (paddr=0x%lx)\n", evict_vaddr, evict_paddr);
     evict_page_state = false;
 
     /* evict status polling is optional, so we reset after each eviction to
