@@ -127,14 +127,7 @@ bool pfa_t::evict_page(const uint8_t *bytes)
     memcpy(&evict_vaddr, bytes, sizeof(reg_t));
     evict_page_state = true;
   } else {
-    memcpy(&evict_pte, bytes, sizeof(reg_t));
-
-    reg_t *host_pte = (reg_t*)sim->addr_to_mem(evict_pte);
-    if(host_pte == NULL) {
-      fprintf(stderr, "SPIKE PFA: paddr of page pte (0x%lx) not valid\n", evict_pte);
-      return false;
-    }
-    reg_t evict_paddr = (*host_pte >> PTE_PPN_SHIFT) << 12;
+    memcpy(&evict_paddr, bytes, sizeof(reg_t));
 
     /* Copy page out to remote buffer */
     uint8_t *page_val = new uint8_t[4096];
@@ -146,12 +139,6 @@ bool pfa_t::evict_page(const uint8_t *bytes)
     memcpy(page_val, host_page, 4096);
 
     rmem.insert(std::pair<reg_t, uint8_t*>(evict_vaddr, page_val));
-
-    /* Set remote bit in pte */
-    *host_pte |= PTE_REM;
-    /* XXX PFA I'm lazy, this will only work for one cpu right now */
-    mmu_t *mmu = sim->procs[0]->get_mmu();
-    mmu->flush_tlb();
 
     pfa_info("Evicting page at vaddr 0x%lx (pte=0x%lx)\n", evict_vaddr, *host_pte);
     evict_page_state = false;

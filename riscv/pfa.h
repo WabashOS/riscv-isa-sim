@@ -114,10 +114,10 @@ class pfa_t : public abstract_device_t {
     bool  evict_page_state = false;
 
     /* Eviction requires two stores to PFA_EVICTPAGE, first is the vaddr of the
-     * page to be evicted, second is paddr of pte. We store them here across
+     * page to be evicted, second is paddr of page. We store them here across
      * calls to pfa.store()
      */
-    reg_t evict_pte = 0;
+    reg_t evict_paddr = 0;
     reg_t evict_vaddr = 0;
 };
 #endif
