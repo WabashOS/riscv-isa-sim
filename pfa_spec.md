@@ -26,6 +26,18 @@ like page-replacement policies are handled asynchronously by the OS.
   1. The OS periodically queries the new page queue and performs any necessary
      bookkeeping.
 
+## PTE Management
+The OS must set up the metadata bits of a remote PTE as they should be after
+fetch. Typically, the OS should simply set the remote bit of the existing PTE
+and touch nothing else. On a fetch, the paddr will be replaced but the metadata
+(access rights, dirty, etc...) will not be changed.
+
+**Note:** A remote PTE is "valid" in the sense of the RISC-V Priviledge Spec.
+The key distinction is that PTE bits are *not* "don't cares" as they would be
+with a normal swapped-out page.
+**Note:** This goes against typical OS behavior of storing swap metadata in an
+evicted PTE.
+
 ## Free Frame and New Page Queue Management
 The OS should ensure that there are sufficient free frames in the free queue to
 ensure smooth operation. If a remote page is requested and there are no free

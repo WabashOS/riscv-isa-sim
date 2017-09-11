@@ -196,6 +196,7 @@ reg_t mmu_t::walk(reg_t addr, access_type type, reg_t mode)
         /* PFA fetched the page, resume normal MMU operation */
         case PFA_OK:
           *(uint64_t*)ppte &= ~PTE_REM;
+          // *(uint64_t*)ppte |= PTE_V;
           pte = *(uint64_t*)ppte;
           ppn = pte >> PTE_PPN_SHIFT;
           break;
@@ -207,7 +208,7 @@ reg_t mmu_t::walk(reg_t addr, access_type type, reg_t mode)
 
         /* Illegal behavior error, throw error to OS */
         case PFA_NO_PAGE:
-          pfa_err("couldn't find vaddr (%ld) but it was marked remote!\n", addr);
+          pfa_err("couldn't find vaddr (0x%lx) but it was marked remote!\n", addr);
           throw trap_load_access_fault(addr);
       } 
     }

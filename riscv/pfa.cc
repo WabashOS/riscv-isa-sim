@@ -71,10 +71,10 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   }
   
   /* Get the remote page (if it exists) */
-  rmem_t::iterator ri = rmem.find(vaddr);
+  rmem_t::iterator ri = rmem.find(vaddr & PGMASK);
   if(ri == rmem.end()) {
     /* not found */
-    pfa_err("Requested vaddr (%ld) not in remote memory\n", vaddr);
+    pfa_err("Requested vaddr (0x%lx) not in remote memory\n", vaddr);
     return PFA_NO_PAGE;
   }
 
@@ -92,7 +92,7 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   void *host_page = (void*)sim->addr_to_mem(paddr);
   memcpy(host_page, ri->second, 4096);
   
-  newq.push(vaddr);
+  newq.push(vaddr & PGMASK);
   /* Free the rmem buffer */
   delete [] ri->second;
 
@@ -139,7 +139,7 @@ bool pfa_t::evict_page(const uint8_t *bytes)
     }
     memcpy(page_val, host_page, 4096);
 
-    rmem.insert(std::pair<reg_t, uint8_t*>(evict_vaddr, page_val));
+    rmem.insert(std::pair<reg_t, uint8_t*>(evict_vaddr & PGMASK, page_val));
 
     pfa_info("Evicting page at vaddr 0x%lx (paddr=0x%lx)\n", evict_vaddr, evict_paddr);
     evict_page_state = false;
