@@ -35,6 +35,7 @@ and touch nothing else. On a fetch, the paddr will be replaced but the metadata
 **Note:** A remote PTE is "valid" in the sense of the RISC-V Priviledge Spec.
 The key distinction is that PTE bits are *not* "don't cares" as they would be
 with a normal swapped-out page.
+
 **Note:** This goes against typical OS behavior of storing swap metadata in an
 evicted PTE.
 
