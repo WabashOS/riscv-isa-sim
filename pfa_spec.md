@@ -9,7 +9,7 @@ like page-replacement policies are handled asynchronously by the OS.
 1. Eviction:
     1. The OS identifies pages that should be stored remotely.
     1. It evicts them explicitly by writing to the evict queue.
-    1. The OS marks the remote bit in the relevant PTE
+    1. The OS stores a page identifier in the PTE and marks it as remote.
 1. Provide Free Frames:
     1. The OS identifies one or more physical frames that can be used to house
        newly fetched pages.
@@ -26,19 +26,6 @@ like page-replacement policies are handled asynchronously by the OS.
     1. The OS periodically queries the new page queue and performs any necessary
        bookkeeping.
 
-## PTE Management
-The OS must set up the metadata bits of a remote PTE as they should be after
-fetch. Typically, the OS should simply set the remote bit of the existing PTE
-and touch nothing else. On a fetch, the paddr will be replaced but the metadata
-(access rights, dirty, etc...) will not be changed.
-
-**Note:** A remote PTE is "valid" in the sense of the RISC-V Priviledge Spec.
-The key distinction is that PTE bits are *not* "don't cares" as they would be
-with a normal swapped-out page.
-
-**Note:** This goes against typical OS behavior of storing swap metadata in an
-evicted PTE.
-
 ## Free Frame and New Page Queue Management
 The OS should ensure that there are sufficient free frames in the free queue to
 ensure smooth operation. If a remote page is requested and there are no free
@@ -53,37 +40,38 @@ fault.
 The OS can differentiate a regular page-fault interrupt from a “PFA out of
 free-frames” interrupt by checking if the requested page has the remote bit set
 in its PTE. To tell the difference between a full free-frames queue and full
-new-pages queue, the OS can query the FREE_STAT port.
+new-pages queue, the OS can query the FREE_STAT and NEW_STAT ports.
 
 ## Limitations
-The current PFA design does not support multiple cores.
-
-**Example**: Queues cannot be atomically queried for free space and pushed to.
-
-**Example**: PFA directly modifies page table with no regard for locking or other MMUs.
-The PFA does not handle shared pages.
+* The current PFA design does not support multiple cores.
+  * **Example**: Queues cannot be atomically queried for free space and pushed to.
+  * **Example**: PFA directly modifies page table with no regard for locking or other MMUs.
+* The PFA does not handle shared pages.
 
 # RISCV Standards
 **User Spec**: 2.1 (RV64 only)
 
 **Priv Spec**: 1.10 (Sv39 or Sv48 only)
 
-# PTE Format
-**PTE Remote Bit**:  63
+# PTE
+Remote pages use a unique PTE format:
 
-**C Constant**:      PTE_REM = (1l << 63)
+```
+63                          12             2        1       0
+|          Page ID          |  protection  | remote | valid |
+```
 
-The PFA adds one additional bit to the Sv48/39 PTE to indicate that a page is
-remote. We currently use bit 63 (technically “reserved for hw” in the spec),
-which is a bit dodgy if we start using real large-memory systems that use
-higher address bits. All bits in the control section (bits 0-9) of the PTE are
-already allocated.
-
-**Note**: It may be tempting to use bits 8/9 (reserved for SW) but this will not
-work on Linux.
-
-**Note**: The spec requires SW to zero the reserved upper bits of the PTE (63-54).
-This is fine so long as it doesn’t clear them while the page is remote.
+Fields
+* **Valid:** Valid Flag
+  * **1** Indicates that this page is valid and shall be interpreted as a normal Sv48 PTE.
+  * **0** indicates that this PTE is invalid (the remote bit will be checked).
+* **Remote:** Remote memory flag.
+  * **1** indicates the page is in remote memory.
+  * **0** indicates that this page is simply invalid (access triggers a page fault).
+  * _Note_: This is an incompatible change from the RISC-V priviledge spec 1.10 which specifies that bits 1-63 are don't cares if the valid bit is 0. This is compatible in-practice with the current RISC-V Linux implementation.
+* **Protection:** Protection bits to use after a page is fetched. These match the first 10 bits of a standard PTE.
+  * _Note_: This includes a valid bit which may differ from the Remote PTE valid bit. If this is 'invalid', the PFA will fetch the remote page, but then trigger a page-fault anyway.
+* **Page ID:** An opaque identifier stored in the PTE and returned to the OS through the New Page Queue when the remote page is fetched.
 
 # MMIO
 | Name       | Value     |
@@ -94,6 +82,7 @@ This is fine so long as it doesn’t clear them while the page is remote.
 | EVICT      | BASE + 16 |
 | EVICT_STAT | BASE + 24 |
 | NEW        | BASE + 32 |
+| NEW_STAT   | BASE + 40 |
 
 
 Basic PFA MMIO behavior is described below. Operations marked “Illegal” will
@@ -173,15 +162,25 @@ Check which pages have been fetched automatically by the PFA (useful for OS
 bookkeeping)
 
 ### Load
-Returned Value: vaddr of oldest fetched page that has not been reported (FIFO
-order) OR 0 if no page has been evicted but not reported
+Returned Value: Page ID of oldest fetched page that has not been reported (FIFO
+order). Will return 0 if no new pages are present.
 
 **Note**: Unlike EVICT, NEW always reports every fetched page. Since it may be
 bounded, it is important for SW to drain this queue periodically. A full new
-queue will result in a page-fault being delivered to the OS. In practice, this
-shouldn’t be an issue if one always pops off the NEW queue when adding to the
-FREE queue since they will likely be the same size.
+queue will result in a page-fault being delivered to the OS.
+
+**Note**: The OS may choose to store pages with a Page ID of 0. If this is the
+case, the OS must use the NEW_STAT register to differentiate between an empty
+new page queue and a returned page with ID 0.
 
 ### Store
 Illegal
 
+## NEW_STAT
+Query status of new page queue.
+
+### Load
+Returned Value: Number of new pages in the queue.
+
+### Store
+Illegal
