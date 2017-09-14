@@ -3,6 +3,19 @@
 #include "mmu.h"
 #include <cassert>
 
+/* Generic Helpers */
+reg_t pfa_mk_local_pte(reg_t rem_pte, uintptr_t paddr)
+{
+  reg_t local_pte;
+  /* move in protection bits */
+  local_pte = rem_pte >> PFA_PROT_SHIFT;
+  /* stick in paddr (clear upper bits, then OR in)*/
+  local_pte = (local_pte & ~(~0ul << PTE_PPN_SHIFT)) |
+              ((paddr >> 12) << PTE_PPN_SHIFT);
+ 
+  return local_pte;
+}
+
 bool pfa_t::load(reg_t addr, size_t len, uint8_t* bytes)
 {
   /* Only word-sized values accepted */
@@ -19,8 +32,9 @@ bool pfa_t::load(reg_t addr, size_t len, uint8_t* bytes)
     case PFA_EVICTSTAT:
       return evict_check_size(bytes);
     case PFA_NEWPAGE:
-      reg_t val;
       return pop_newpage(bytes);
+    case PFA_NEWSTAT:
+      return check_newpage(bytes);
     default:
       pfa_err("Unrecognized load to PFA offset %ld\n", addr);
       return false;
@@ -48,6 +62,9 @@ bool pfa_t::store(reg_t addr, size_t len, const uint8_t* bytes)
       return false;
     case PFA_NEWPAGE:
       pfa_err("Cannot store to PFA_NEWFRAME\n");
+      return false;
+    case PFA_NEWSTAT:
+      pfa_err("Cannot store to PFA_NEWSTAT\n");
       return false;
     default:
       pfa_err("Unrecognized store to PFA offset %ld\n", addr);
@@ -81,18 +98,24 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   reg_t paddr = freeq.front();
   freeq.pop();
 
-  /* Change the ppn in the pte */
-  *host_pte = (*host_pte & ~(~0ul << PTE_PPN_SHIFT)) |
-              ((paddr >> 12) << PTE_PPN_SHIFT);
-  
-  pfa_info("fetching vaddr (0x%lx) into paddr (0x%lx), pte=0x%lx\n",
-      vaddr, paddr, *host_pte);
+  /* Stick the pageID in the new queue */
+  uint64_t pageid = pfa_remote_get_pageid(*host_pte);
+  newq.push(pageid);
+
+  /* Assign ppn to pte and make local*/
+  *host_pte = pfa_mk_local_pte(*host_pte, paddr);
+
+  pfa_info("fetching vaddr (0x%lx) into paddr (0x%lx), pageid (0x%lx), pte=0x%lx\n",
+      vaddr, paddr, pageid, *host_pte);
 
   /* Copy over remote data into new frame */
   void *host_page = (void*)sim->addr_to_mem(paddr);
+  if(host_page == NULL) {
+    pfa_err("Bad physical address: %lx\n", paddr);
+    return PFA_ERR;
+  }
   memcpy(host_page, ri->second, 4096);
   
-  newq.push(vaddr & PGMASK);
   /* Free the rmem buffer */
   delete [] ri->second;
 
@@ -111,6 +134,14 @@ bool pfa_t::pop_newpage(uint8_t *bytes)
 
   pfa_info("Reporting newpage at 0x%lx\n", vaddr);
   memcpy(bytes, &vaddr, sizeof(reg_t));
+  return true;
+}
+
+bool pfa_t::check_newpage(uint8_t *bytes)
+{
+  reg_t nnew = (reg_t)newq.size();
+  pfa_info("Reporting %ld new pages\n", nnew);
+  memcpy(bytes, &nnew, sizeof(reg_t));
   return true;
 }
 
@@ -178,6 +209,11 @@ bool pfa_t::free_frame(const uint8_t *bytes)
   if(freeq.size() <= PFA_FREE_MAX) {
     reg_t paddr;
     memcpy(&paddr, bytes, sizeof(reg_t));
+    
+    if(!sim->addr_to_mem(paddr)) {
+      pfa_err("Invalid paddr for free frame\n");
+    }
+
     pfa_info("Adding paddr 0x%lx to list of free frames\n", paddr);
     freeq.push(paddr);
     return true;

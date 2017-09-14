@@ -18,6 +18,7 @@
 #define PFA_EVICTPAGE 16
 #define PFA_EVICTSTAT 24
 #define PFA_NEWPAGE   32
+#define PFA_NEWSTAT   40
 
 /* PFA Sizing */
 #define PFA_FREE_MAX  64 
@@ -29,7 +30,8 @@ typedef enum pfa_err {
   PFA_OK,      //Success
   PFA_NO_FREE, //PFA needs more free frames
   PFA_NO_NEW,  //new page queue is full
-  PFA_NO_PAGE  //PFA couldn't find the requested page in remote memory
+  PFA_NO_PAGE, //PFA couldn't find the requested page in remote memory
+  PFA_ERR      //Generic unrecoverable error
 } pfa_err_t;
 
 /* first=vaddr of stored page, second=pointer to 4kb buffer holding page */
@@ -37,6 +39,19 @@ typedef std::map<reg_t, uint8_t*> rmem_t;
 
 /* Forward declare sim_t to avoid circular dep with sim.h */
 class sim_t;
+
+/* Generic public PFA helper functions */
+
+/* Check if a pte refers to a remote page */
+#define pte_is_remote(pte) (!(pte & PTE_V) && (pte & PFA_REMOTE))
+
+/* extract the page id from a remote pte */
+#define pfa_remote_get_pageid(pte) (pte >> PFA_PAGEID_SHIFT)
+
+/* Create a local PTE out of a remote pte and a physical address.
+ * Note: destroys pageID, extract it first if you want it */
+reg_t pfa_mk_local_pte(reg_t rem_pte, uintptr_t paddr);
+
 
 /* Page-Fault accelerator device */
 class pfa_t : public abstract_device_t {
@@ -59,8 +74,11 @@ class pfa_t : public abstract_device_t {
   private:
     /* Pop the most recent new page into bytes.
      * If there is a new page: returns vaddr of new page (FIFO order)
-     * If there is no new pages: returns 0*/
+     * If there are no new pages: returns 0*/
     bool pop_newpage(uint8_t *bytes);
+
+    /* Report how many new pages are currently waiting to be processed */
+    bool check_newpage(uint8_t *bytes);
 
     /* Check if there is room in the evict queue. This is an MMIO store
      * response.

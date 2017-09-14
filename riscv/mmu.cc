@@ -189,14 +189,12 @@ reg_t mmu_t::walk(reg_t addr, access_type type, reg_t mode)
     reg_t ppn = pte >> PTE_PPN_SHIFT;
 
     /* Check for remote page */
-    if (pte & PTE_REM) {
+    if (pte_is_remote(pte)) {
       pfa_info("Saw remote page\n");
       pfa_err_t pfa_res = sim->pfa->fetch_page(addr, (reg_t*)ppte);
       switch(pfa_res) {
         /* PFA fetched the page, resume normal MMU operation */
         case PFA_OK:
-          *(uint64_t*)ppte &= ~PTE_REM;
-          // *(uint64_t*)ppte |= PTE_V;
           pte = *(uint64_t*)ppte;
           ppn = pte >> PTE_PPN_SHIFT;
           break;
@@ -210,6 +208,10 @@ reg_t mmu_t::walk(reg_t addr, access_type type, reg_t mode)
         case PFA_NO_PAGE:
           pfa_err("couldn't find vaddr (0x%lx) but it was marked remote!\n", addr);
           throw trap_load_access_fault(addr);
+
+        case PFA_ERR:
+          pfa_err("Unrecoverable error\n");
+          exit(0);
       } 
     }
 
