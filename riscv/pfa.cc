@@ -99,7 +99,7 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   freeq.pop();
 
   /* Stick the pageID in the new queue */
-  uint64_t pageid = pfa_remote_get_pageid(*host_pte);
+  reg_t pageid = pfa_remote_get_pageid(*host_pte);
   newq.push(pageid);
 
   /* Assign ppn to pte and make local*/
@@ -118,6 +118,7 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   
   /* Free the rmem buffer */
   delete [] ri->second;
+  rmem.erase(ri);
 
   return PFA_OK;
 }
@@ -165,12 +166,18 @@ bool pfa_t::evict_page(const uint8_t *bytes)
     uint8_t *page_val = new uint8_t[4096];
     void *host_page = (void*)sim->addr_to_mem(evict_paddr);
     if(host_page == NULL) {
-      fprintf(stderr, "SPIKE PFA: Invalid paddr for evicted page (0x%lx)\n", evict_paddr);
+      pfa_err("Invalid paddr for evicted page (0x%lx)\n", evict_paddr);
       return false;
     }
     memcpy(page_val, host_page, 4096);
 
-    rmem.insert(std::pair<reg_t, uint8_t*>(evict_vaddr & PGMASK, page_val));
+    auto res = rmem.emplace(evict_vaddr & PGMASK, page_val);
+    if(res.second == false) {
+      /* Replacing an existing entry */
+      auto ri = res.first;
+      delete [] ri->second;
+      ri->second = page_val;
+    }
 
     pfa_info("Evicting page at vaddr 0x%lx (paddr=0x%lx)\n", evict_vaddr, evict_paddr);
     evict_page_state = false;
