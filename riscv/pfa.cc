@@ -28,7 +28,8 @@ bool pfa_t::load(reg_t addr, size_t len, uint8_t* bytes)
     case PFA_FREESTAT:
       return free_check_size(bytes);
     case PFA_EVICTPAGE:
-      return check_evict_status(bytes);
+      pfa_err("Cannot load from PFA_EVICTPAGE");
+      return false;
     case PFA_EVICTSTAT:
       return evict_check_size(bytes);
     case PFA_NEWPAGE:
@@ -77,18 +78,20 @@ bool pfa_t::store(reg_t addr, size_t len, const uint8_t* bytes)
 
 pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
 {
+  vaddr &= PGMASK;
+
   /* Basic feasibility checks */
   if(freeq.empty()){
-    pfa_info("No available free frames\n");
+    pfa_info("No available free frame for vaddr 0x%lx\n", vaddr);
     return PFA_NO_FREE;
   }
   if(newq.size() == PFA_NEW_MAX) {
-    pfa_info("No free slots in new page queue\n");
+    pfa_info("No free slots in new page queue for vaddr 0x%lx\n", vaddr);
     return PFA_NO_NEW;
   }
   
   /* Get the remote page (if it exists) */
-  rmem_t::iterator ri = rmem.find(vaddr & PGMASK);
+  rmem_t::iterator ri = rmem.find(vaddr);
   if(ri == rmem.end()) {
     /* not found */
     pfa_err("Requested vaddr (0x%lx) not in remote memory\n", vaddr);
@@ -184,21 +187,6 @@ bool pfa_t::evict_page(const uint8_t *bytes)
 
     /* evict status polling is optional, so we reset after each eviction to
      * avoid inconsistent state */
-    evict_status = false;
-  }
-
-  return true;
-}
-
-bool pfa_t::check_evict_status(uint8_t *bytes)
-{
-  /* Force apps to poll once for eviction completion */
-  if(evict_status == false) {
-    reg_t retval = 0;
-    memcpy(bytes, &retval, sizeof(reg_t));
-    evict_status = true;
-  } else {
-    memcpy(bytes, &evict_vaddr, sizeof(reg_t));
     evict_status = false;
   }
 

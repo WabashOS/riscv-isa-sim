@@ -190,7 +190,6 @@ reg_t mmu_t::walk(reg_t addr, access_type type, reg_t mode)
 
     /* Check for remote page */
     if (pte_is_remote(pte)) {
-      pfa_info("Saw remote page\n");
       pfa_err_t pfa_res = sim->pfa->fetch_page(addr, (reg_t*)ppte);
       switch(pfa_res) {
         /* PFA fetched the page, resume normal MMU operation */

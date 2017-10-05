@@ -117,17 +117,7 @@ Illegal
 Evict pages to remote memory and check if the eviction is complete.
 
 ### Load
-Returned Value: virtual address (vaddr) of last successfully evicted page OR 0
-if a page is currently being evicted (or no page has ever been evicted).
-
-Loading from EVICT is intended for polling for eviction completion. This is
-needed because SW must not write to a frame while its page is being evicted.
-
-**Note**: Only the most recently evicted page is returned if many pages are
-evicted before EVICT is polled.
-
-**Note**: 0 will always be returned if no page was ever evicted. In this case, a
-polling loop will hang.
+Illegal
 
 ### Store
 Expected Values:
@@ -152,7 +142,8 @@ Query status of evict queue.
 
 ### Load
 Returned Value: Number of unused slots in the evict queue. Returning 0 means it
-is illegal to store to EVICT.
+is illegal to store to EVICT. Returning EVICT_MAX (size of evict Q) means all
+pages have been successfully evicted.
 
 ### Store
 Illegal

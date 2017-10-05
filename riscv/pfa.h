@@ -97,13 +97,6 @@ class pfa_t : public abstract_device_t {
      */
     bool evict_page(const uint8_t *bytes);
 
-    /* Reports the status of the last evicted page. In spike, this always
-     * 0 the first time, and vaddr the second to fully test polling.
-     *
-     * bytes <- vaddr of last evicted page or 0 if eviction in progress.
-     */
-    bool check_evict_status(uint8_t *bytes);
-
     /* Check if there is room in the free queue. This is an MMIO store
      * response.
      * Args:
