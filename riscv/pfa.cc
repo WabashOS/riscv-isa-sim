@@ -3,6 +3,16 @@
 #include "mmu.h"
 #include <cassert>
 
+const char* const _pfa_port_names[PFA_NPORTS] = {
+  "FREE_FRAME",
+  "FREE_STAT",
+  "EVICT_PAGE",
+  "EVICT_STAT",
+  "NEW_PGID",
+  "NEW_VADDR",
+  "NEW_STAT"
+};
+
 /* Generic Helpers */
 reg_t pfa_mk_local_pte(reg_t rem_pte, uintptr_t paddr)
 {
@@ -22,22 +32,22 @@ bool pfa_t::load(reg_t addr, size_t len, uint8_t* bytes)
   assert(len == sizeof(reg_t));
 
   switch(addr) {
-    case PFA_FREEFRAME:
-      pfa_err("Cannot load from PFA_FREEPAGE");
-      return false;
     case PFA_FREESTAT:
       return free_check_size(bytes);
-    case PFA_EVICTPAGE:
-      pfa_err("Cannot load from PFA_EVICTPAGE");
-      return false;
     case PFA_EVICTSTAT:
       return evict_check_size(bytes);
-    case PFA_NEWPAGE:
-      return pop_newpage(bytes);
+    case PFA_NEWPGID:
+      return pop_newpgid(bytes);
+    case PFA_NEWVADDR:
+      return pop_newvaddr(bytes);
     case PFA_NEWSTAT:
       return check_newpage(bytes);
     default:
-      pfa_err("Unrecognized load to PFA offset %ld\n", addr);
+      if(addr % 8 != 0 || addr > PFA_PORT_LAST) {
+        pfa_err("Unrecognized load to PFA offset %ld\n", addr);
+      } else {
+        pfa_err("Cannot load from %s\n", PFA_PORT_NAME(addr));
+      }
       return false;
   }
 
@@ -53,22 +63,14 @@ bool pfa_t::store(reg_t addr, size_t len, const uint8_t* bytes)
   switch(addr) {
     case PFA_FREEFRAME:
       return free_frame(bytes);
-    case PFA_FREESTAT:
-      pfa_err("Cannot store to FREESTAT\n");
-      return false;
     case PFA_EVICTPAGE:
       return evict_page(bytes);
-    case PFA_EVICTSTAT:
-      pfa_err("Cannot store to EVICTSTAT\n");
-      return false;
-    case PFA_NEWPAGE:
-      pfa_err("Cannot store to PFA_NEWFRAME\n");
-      return false;
-    case PFA_NEWSTAT:
-      pfa_err("Cannot store to PFA_NEWSTAT\n");
-      return false;
     default:
-      pfa_err("Unrecognized store to PFA offset %ld\n", addr);
+      if(addr % 8 != 0 || addr > PFA_PORT_LAST) {
+        pfa_err("Unrecognized store to PFA offset %ld\n", addr);
+      } else {
+        pfa_err("Cannot store to %s\n", PFA_PORT_NAME(addr));
+      }
       return false;
   }
 
@@ -85,7 +87,7 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
     pfa_info("No available free frame for vaddr 0x%lx\n", vaddr);
     return PFA_NO_FREE;
   }
-  if(newq.size() == PFA_NEW_MAX) {
+  if(new_pgid_q.size() == PFA_NEW_MAX || new_vaddr_q.size() == PFA_NEW_MAX) {
     pfa_info("No free slots in new page queue for vaddr 0x%lx\n", vaddr);
     return PFA_NO_NEW;
   }
@@ -103,8 +105,9 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   reg_t paddr = freeq.front();
   freeq.pop();
 
-  /* Stick the pageID in the new queue */
-  newq.push(pageid);
+  /* Update the new queues */
+  new_pgid_q.push(pageid);
+  new_vaddr_q.push(vaddr);
 
   /* Assign ppn to pte and make local*/
   *host_pte = pfa_mk_local_pte(*host_pte, paddr);
@@ -127,25 +130,40 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   return PFA_OK;
 }
 
-bool pfa_t::pop_newpage(uint8_t *bytes)
+bool pfa_t::pop_newpgid(uint8_t *bytes)
 {
-  reg_t pgid;
-  if(newq.empty()) {
+  pgid_t pgid;
+  if(new_pgid_q.empty()) {
     return false;
   }  else {
-    pgid = newq.front();
-    newq.pop();
+    pgid = new_pgid_q.front();
+    new_pgid_q.pop();
   }
 
-  pfa_info("Reporting newpage id=0x%lx\n", pgid);
+  pfa_info("Reporting newpage id=0x%x\n", pgid);
   reg_t wide_pgid = (reg_t)pgid;
   memcpy(bytes, &wide_pgid, sizeof(reg_t));
   return true;
 }
 
+bool pfa_t::pop_newvaddr(uint8_t *bytes)
+{
+  reg_t vaddr;
+  if(new_vaddr_q.empty()) {
+    return false;
+  }  else {
+    vaddr = new_vaddr_q.front();
+    new_vaddr_q.pop();
+  }
+
+  pfa_info("Reporting newpage vaddr=0x%lx\n", vaddr);
+  memcpy(bytes, &vaddr, sizeof(reg_t));
+  return true;
+}
+
 bool pfa_t::check_newpage(uint8_t *bytes)
 {
-  reg_t nnew = (reg_t)newq.size();
+  reg_t nnew = (reg_t)new_pgid_q.size();
   pfa_info("Reporting %ld new pages\n", nnew);
   memcpy(bytes, &nnew, sizeof(reg_t));
   return true;

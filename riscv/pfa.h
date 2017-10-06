@@ -13,12 +13,20 @@
  * PFA_BASE in encoding.h contains the physical address where the device is mapped.
  * The device model is independent of the base address and only sees these
  * offsets (addr in load()/store()). */
+#define PFA_NPORTS 7
 #define PFA_FREEFRAME 0
 #define PFA_FREESTAT  8
 #define PFA_EVICTPAGE 16
 #define PFA_EVICTSTAT 24
-#define PFA_NEWPAGE   32
-#define PFA_NEWSTAT   40
+#define PFA_NEWPGID   32
+#define PFA_NEWVADDR  40
+#define PFA_NEWSTAT   48
+#define PFA_PORT_LAST 48
+
+/* Human-readable names for MMIO ports. Use PFA_PORT_NAME() to use. */
+extern const char* const _pfa_port_names[];
+/* Retreive a human-readable name (const char *) for an MMIO port number */
+#define PFA_PORT_NAME(PORT) _pfa_port_names[PORT / 8]
 
 /* PFA Sizing */
 #define PFA_FREE_MAX  64 
@@ -77,7 +85,8 @@ class pfa_t : public abstract_device_t {
     /* Pop the most recent new page into bytes.
      * If there is a new page: returns vaddr of new page (FIFO order)
      * If there are no new pages: returns 0*/
-    bool pop_newpage(uint8_t *bytes);
+    bool pop_newpgid(uint8_t *bytes);
+    bool pop_newvaddr(uint8_t *bytes);
 
     /* Report how many new pages are currently waiting to be processed */
     bool check_newpage(uint8_t *bytes);
@@ -115,22 +124,8 @@ class pfa_t : public abstract_device_t {
     sim_t *sim;
 
     std::queue<reg_t> freeq;
-    std::queue<reg_t> newq;
+    std::queue<pgid_t> new_pgid_q;
+    std::queue<reg_t>  new_vaddr_q;
     rmem_t rmem;
-
-    /* Used to implement state for check_evict_status which needs to pretend
-     * that eviction takes time. */
-    bool  evict_status = false;
-
-    /* Used to implement the state for evict_page. false->waiting for vaddr.
-     * true->waiting for pte */
-    bool  evict_page_state = false;
-
-    /* Eviction requires two stores to PFA_EVICTPAGE, first is the vaddr of the
-     * page to be evicted, second is paddr of page. We store them here across
-     * calls to pfa.store()
-     */
-    reg_t evict_paddr = 0;
-    reg_t evict_vaddr = 0;
 };
 #endif

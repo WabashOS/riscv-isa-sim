@@ -87,9 +87,9 @@ Fields
 | FREE_STAT  | BASE + 8  |
 | EVICT      | BASE + 16 |
 | EVICT_STAT | BASE + 24 |
-| NEW        | BASE + 32 |
-| NEW_STAT   | BASE + 40 |
-
+| NEW_PGID   | BASE + 32 |
+| NEW_VADDR  | BASE + 40 |
+| NEW_STAT   | BASE + 48 |
 
 Basic PFA MMIO behavior is described below. Operations marked “Illegal” will
 result in a load/store access fault.
@@ -160,7 +160,7 @@ pages have been successfully evicted.
 ### Store
 Illegal
 
-## NEW
+## NEW_PGID
 Check which pages have been fetched automatically by the PFA (useful for OS
 bookkeeping)
 
@@ -178,11 +178,27 @@ queue will result in a page-fault being delivered to the OS.
 ### Store
 Illegal
 
+## NEW_VADDR
+Same as NEW_PGID but returns the vaddr of fetched pages.
+
+### Load
+Returned Value: virtual address of oldest fetched page that has not been
+reported (FIFO order).
+
+**Note:** It is up to the user to keep these queues in sync. Ideally they would
+both be loaded from at the same time.
+
+### Store
+Illegal
+
 ## NEW_STAT
 Query status of new page queue.
 
 ### Load
 Returned Value: Number of new pages in the queue.
 
+**Note**: It is undefined which size (NEW_VADDR or NEW_PGID) is being reported.
+It is advised to pop both queues together to avoid confusion.
+ 
 ### Store
 Illegal
