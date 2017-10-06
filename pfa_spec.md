@@ -57,8 +57,8 @@ new-pages queue, the OS can query the FREE_STAT and NEW_STAT ports.
 Remote pages use a unique PTE format:
 
 ```
-63                          12             2        1       0
-|          Page ID          |  protection  | remote | valid |
+63         40                  12             2        1       0
+|  Unused  |      Page ID      |  protection  | remote | valid |
 ```
 
 Fields
@@ -68,10 +68,16 @@ Fields
 * **Remote:** Remote memory flag.
   * **1** indicates the page is in remote memory.
   * **0** indicates that this page is simply invalid (access triggers a page fault).
-  * _Note_: This is an incompatible change from the RISC-V priviledge spec 1.10 which specifies that bits 1-63 are don't cares if the valid bit is 0. This is compatible in-practice with the current RISC-V Linux implementation.
-* **Protection:** Protection bits to use after a page is fetched. These match the first 10 bits of a standard PTE.
-  * _Note_: This includes a valid bit which may differ from the Remote PTE valid bit. If this is 'invalid', the PFA will fetch the remote page, but then trigger a page-fault anyway.
-* **Page ID:** An opaque identifier stored in the PTE and returned to the OS through the New Page Queue when the remote page is fetched.
+  * _Note_: This is an incompatible change from the RISC-V priviledge spec 1.10
+    which specifies that bits 1-63 are don't cares if the valid bit is 0. This
+    is compatible in-practice with the current RISC-V Linux implementation.
+* **Protection:** Protection bits to use after a page is fetched. These match
+  the first 10 bits of a standard PTE.
+  * _Note_: This includes a valid bit which may differ from the Remote PTE
+    valid bit. If this is 'invalid', the PFA will fetch the remote page, but
+    then trigger a page-fault anyway.
+* **Page ID:** A unique identifier for this page.
+  * Must match a pageID that was evicted and not-yet-fetched.
 
 # MMIO
 | Name       | Value     |
@@ -120,14 +126,20 @@ Evict pages to remote memory and check if the eviction is complete.
 Illegal
 
 ### Store
-Expected Values:
-* vaddr of page to evict
-* paddr of page frame to evict
+Expected Value: Packed eviction uint64 containing pfn and pgid 
 
-Storing to EVICT evicts a page to remote memory. It takes two stores to evict a
-page, one to store the page vaddr, and one to store a physical pointer to the
-page. There is no way to query which state the EVICT queue is in, SW must ensure
-that stores to EVICT always come in pairs. 
+Eviction requires two values (packed into a single 8-byte value, see below):
+* pfn: Page frame number. This is the physical address of the page shifted 12b
+  to the right (since the first 12b are always 0 in page-aligned adresses).
+* Page ID:  A unique 28-bit value to be associated with the page. Must be unique
+  among all currently evicted pages (pgids may be reused after being seen in
+  the newq)
+
+The two values must be packed into a single 8-byte value as follows:
+```
+63                        36                            0
+|         Page ID         |            pfn              |
+```
 
 Eviction is asynchronous. Multiple pages may be enqueued for eviction
 simultaneously. Users may check EVICT_STAT before storing to ensure there is
@@ -154,15 +166,14 @@ bookkeeping)
 
 ### Load
 Returned Value: Page ID of oldest fetched page that has not been reported (FIFO
-order). Will return 0 if no new pages are present.
+order).
+
+**Note**: It is illegal to load from an empty new queue. You must check
+NEW_STAT before loading from NEW.
 
 **Note**: Unlike EVICT, NEW always reports every fetched page. Since it may be
 bounded, it is important for SW to drain this queue periodically. A full new
 queue will result in a page-fault being delivered to the OS.
-
-**Note**: The OS may choose to store pages with a Page ID of 0. If this is the
-case, the OS must use the NEW_STAT register to differentiate between an empty
-new page queue and a returned page with ID 0.
 
 ### Store
 Illegal

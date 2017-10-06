@@ -26,6 +26,8 @@
 /* We currently can't model multiple outstanding evictions in spike */
 #define PFA_EVICT_MAX 1
 
+typedef uint32_t pgid_t;
+
 typedef enum pfa_err {
   PFA_OK,      //Success
   PFA_NO_FREE, //PFA needs more free frames
@@ -35,7 +37,7 @@ typedef enum pfa_err {
 } pfa_err_t;
 
 /* first=vaddr of stored page, second=pointer to 4kb buffer holding page */
-typedef std::map<reg_t, uint8_t*> rmem_t;
+typedef std::map<pgid_t, uint8_t*> rmem_t;
 
 /* Forward declare sim_t to avoid circular dep with sim.h */
 class sim_t;
@@ -46,7 +48,7 @@ class sim_t;
 #define pte_is_remote(pte) (!(pte & PTE_V) && (pte & PFA_REMOTE))
 
 /* extract the page id from a remote pte */
-#define pfa_remote_get_pageid(pte) (pte >> PFA_PAGEID_SHIFT)
+#define pfa_remote_get_pageid(pte) ((pgid_t)(pte >> PFA_PAGEID_SHIFT))
 
 /* Create a local PTE out of a remote pte and a physical address.
  * Note: destroys pageID, extract it first if you want it */
