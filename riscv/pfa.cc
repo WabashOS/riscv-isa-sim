@@ -112,7 +112,7 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   /* Assign ppn to pte and make local*/
   *host_pte = pfa_mk_local_pte(*host_pte, paddr);
 
-  pfa_info("fetching vaddr (0x%lx) into paddr (0x%lx), pageid (0x%d), pte=0x%lx\n",
+  pfa_info("fetching vaddr (0x%lx) into paddr (0x%lx), pageid (%d), pte=0x%lx\n",
       vaddr, paddr, pageid, *host_pte);
 
   /* Copy over remote data into new frame */
@@ -140,7 +140,7 @@ bool pfa_t::pop_newpgid(uint8_t *bytes)
     new_pgid_q.pop();
   }
 
-  pfa_info("Reporting newpage id=0x%x\n", pgid);
+  pfa_info("Reporting newpage id=%d\n", pgid);
   reg_t wide_pgid = (reg_t)pgid;
   memcpy(bytes, &wide_pgid, sizeof(reg_t));
   return true;
@@ -164,7 +164,7 @@ bool pfa_t::pop_newvaddr(uint8_t *bytes)
 bool pfa_t::check_newpage(uint8_t *bytes)
 {
   reg_t nnew = (reg_t)new_pgid_q.size();
-  pfa_info("Reporting %ld new pages\n", nnew);
+  // pfa_info("Reporting %ld new pages\n", nnew);
   memcpy(bytes, &nnew, sizeof(reg_t));
   return true;
 }

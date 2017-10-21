@@ -4,7 +4,7 @@
 #include "devices.h"
 #include "encoding.h"
 
-#define pfa_info(M, ...) printf("SPIKE PFA: " M, ##__VA_ARGS__)
+#define pfa_info(M, ...) fprintf(stderr, "SPIKE PFA: " M, ##__VA_ARGS__)
 // #define pfa_info(M, ...)
 
 #define pfa_err(M, ...) fprintf(stderr, "SPIKE PFA: " M, ##__VA_ARGS__)

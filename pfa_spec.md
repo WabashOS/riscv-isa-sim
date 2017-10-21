@@ -80,16 +80,16 @@ Fields
   * Must match a pageID that was evicted and not-yet-fetched.
 
 # MMIO
-| Name       | Value     |
-| ---------- | --------- |
-| BASE       | 0x2000    |
-| FREE       | BASE      |
-| FREE_STAT  | BASE + 8  |
-| EVICT      | BASE + 16 |
-| EVICT_STAT | BASE + 24 |
-| NEW_PGID   | BASE + 32 |
-| NEW_VADDR  | BASE + 40 |
-| NEW_STAT   | BASE + 48 |
+| Name       | Value      |
+| ---------- | ---------  |
+| BASE       | 0x10017000 |
+| FREE       | BASE       |
+| FREE_STAT  | BASE + 8   |
+| EVICT      | BASE + 16  |
+| EVICT_STAT | BASE + 24  |
+| NEW_PGID   | BASE + 32  |
+| NEW_VADDR  | BASE + 40  |
+| NEW_STAT   | BASE + 48  |
 
 Basic PFA MMIO behavior is described below. Operations marked “Illegal” will
 result in a load/store access fault.
