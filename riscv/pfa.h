@@ -4,8 +4,8 @@
 #include "devices.h"
 #include "encoding.h"
 
-#define pfa_info(M, ...) fprintf(stderr, "SPIKE PFA: " M, ##__VA_ARGS__)
-// #define pfa_info(M, ...)
+// #define pfa_info(M, ...) fprintf(stderr, "SPIKE PFA: " M, ##__VA_ARGS__)
+#define pfa_info(M, ...)
 
 #define pfa_err(M, ...) fprintf(stderr, "SPIKE PFA: " M, ##__VA_ARGS__)
 
@@ -13,7 +13,7 @@
  * PFA_BASE in encoding.h contains the physical address where the device is mapped.
  * The device model is independent of the base address and only sees these
  * offsets (addr in load()/store()). */
-#define PFA_NPORTS 7
+#define PFA_NPORTS 8
 #define PFA_FREEFRAME 0
 #define PFA_FREESTAT  8
 #define PFA_EVICTPAGE 16
@@ -21,7 +21,8 @@
 #define PFA_NEWPGID   32
 #define PFA_NEWVADDR  40
 #define PFA_NEWSTAT   48
-#define PFA_PORT_LAST 48
+#define PFA_INITMEM   56
+#define PFA_PORT_LAST 56
 
 /* Human-readable names for MMIO ports. Use PFA_PORT_NAME() to use. */
 extern const char* const _pfa_port_names[];
@@ -61,7 +62,6 @@ class sim_t;
 /* Create a local PTE out of a remote pte and a physical address.
  * Note: destroys pageID, extract it first if you want it */
 reg_t pfa_mk_local_pte(reg_t rem_pte, uintptr_t paddr);
-
 
 /* Page-Fault accelerator device */
 class pfa_t : public abstract_device_t {
@@ -120,6 +120,9 @@ class pfa_t : public abstract_device_t {
     /* Enqueu a free frame to be used on the next page fault 
      * bytes: paddr of frame. */
     bool free_frame(const uint8_t *bytes);
+
+    /* Provide a page to the PFA to use for its own purposes */
+    bool init_mem(const uint8_t *bytes);
 
     sim_t *sim;
 
