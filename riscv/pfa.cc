@@ -121,11 +121,11 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
 
   /* Basic feasibility checks */
   if(freeq.empty()){
-    pfa_info("No available free frame for vaddr 0x%lx\n", vaddr);
+    pfa_info("No available free frame for (vaddr=0x%lx)\n", vaddr);
     return PFA_NO_FREE;
   }
   if(new_pgid_q.size() == PFA_NEW_MAX || new_vaddr_q.size() == PFA_NEW_MAX) {
-    pfa_info("No free slots in new page queue for vaddr 0x%lx\n", vaddr);
+    pfa_info("No free slots in new page queue for (vaddr=0x%lx)\n", vaddr);
     return PFA_NO_NEW;
   }
   
@@ -135,7 +135,7 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   rmem_t::iterator ri = rmem.find(pageid);
   if(ri == rmem.end()) {
     /* not found */
-    pfa_err("Requested vaddr (0x%lx) not in remote memory\n", vaddr);
+    pfa_err("Requested (vaddr=0x%lx) not in remote memory\n", vaddr);
     return PFA_NO_PAGE;
   }
 
@@ -149,13 +149,13 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   /* Assign ppn to pte and make local*/
   *host_pte = pfa_mk_local_pte(*host_pte, paddr);
 
-  pfa_info("fetching vaddr (0x%lx) into paddr (0x%lx), pageid (%d), pte=0x%lx\n",
+  pfa_info("fetching (vaddr=0x%lx) into (paddr=0x%lx), (pgid=%d), (pte=0x%lx)\n",
       vaddr, paddr, pageid, *host_pte);
 
   /* Copy over remote data into new frame */
   void *host_page = (void*)sim->addr_to_mem(paddr);
   if(host_page == NULL) {
-    pfa_err("Bad physical address: %lx\n", paddr);
+    pfa_err("Bad physical address: (paddr=%lx)\n", paddr);
     return PFA_ERR;
   }
   memcpy(host_page, ri->second, 4096);
@@ -177,7 +177,7 @@ bool pfa_t::pop_newpgid(uint8_t *bytes)
     new_pgid_q.pop();
   }
 
-  pfa_info("Reporting newpage id=%d\n", pgid);
+  pfa_info("Reporting newpage (pgid=%d)\n", pgid);
   reg_t wide_pgid = (reg_t)pgid;
   memcpy(bytes, &wide_pgid, sizeof(reg_t));
   return true;
@@ -194,7 +194,7 @@ bool pfa_t::pop_newvaddr(uint8_t *bytes)
     new_vaddr_q.pop();
   }
 
-  pfa_info("Reporting newpage vaddr=0x%lx\n", vaddr);
+  pfa_info("Reporting newpage (vaddr=0x%lx)\n", vaddr);
   memcpy(bytes, &vaddr, sizeof(reg_t));
   return true;
 }
@@ -228,7 +228,7 @@ bool pfa_t::evict_page(const uint8_t *bytes)
   uint8_t *page_val = new uint8_t[4096];
   void *host_page = (void*)sim->addr_to_mem(paddr);
   if(host_page == NULL) {
-    pfa_err("Invalid paddr for evicted page (0x%lx)\n", paddr);
+    pfa_err("Invalid paddr for evicted page (paddr=0x%lx)\n", paddr);
     return false;
   }
   memcpy(page_val, host_page, 4096);
@@ -241,7 +241,7 @@ bool pfa_t::evict_page(const uint8_t *bytes)
     ri->second = page_val;
   }
 
-  pfa_info("Evicting page at paddr=0x%lx (pgid=%d)\n", paddr, pgid);
+  pfa_info("Evicting page at (paddr=0x%lx) (pgid=%d)\n", paddr, pgid);
 
   return true;
 }
@@ -262,7 +262,7 @@ bool pfa_t::free_frame(const uint8_t *bytes)
       pfa_err("Invalid paddr for free frame\n");
     }
 
-    pfa_info("Adding paddr 0x%lx to list of free frames\n", paddr);
+    pfa_info("Adding (paddr=0x%lx) to list of free frames\n", paddr);
     freeq.push(paddr);
     return true;
   } else {
@@ -274,12 +274,19 @@ bool pfa_t::free_frame(const uint8_t *bytes)
 bool pfa_t::init_mem(const uint8_t *bytes) {
   memcpy(&pfa_scratch_gaddr, bytes, sizeof(reg_t));
 
-  pfa_info("Registering page at paddr %lx as PFA scratch area\n",
+  pfa_info("Registering page at (paddr=0x%lx) as PFA scratch area\n",
       pfa_scratch_gaddr);
 
-  pfa_scratch_haddr = (uint64_t*)sim->addr_to_mem(pfa_scratch_gaddr);
-  if(!pfa_scratch_haddr)
+  if(pfa_scratch_haddr) {
+    pfa_err("Scratch area already registered!\n");
     return false;
+  }
+  
+  pfa_scratch_haddr = (uint64_t*)sim->addr_to_mem(pfa_scratch_gaddr);
+  if(!pfa_scratch_haddr) {
+    pfa_err("Invalid physical address for scratch area\n");
+    return false;
+  }
 
   for(size_t i = 0; i < 4096 / sizeof(pfa_scratch_haddr[0]); i++) {
     pfa_scratch_haddr[i] = PFA_SCRATCH_VAL;
