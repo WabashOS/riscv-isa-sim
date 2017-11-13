@@ -199,7 +199,7 @@ Query status of new page queue.
 Returned Value: Number of new pages in the queue.
 
 **Note**: It is undefined which size (NEW_VADDR or NEW_PGID) is being reported.
-It is advised to pop both queues together to avoid confusion.
+It is required to pop both queues together.
  
 ### Store
 Illegal
