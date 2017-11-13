@@ -209,9 +209,9 @@ bool pfa_t::check_newpage(uint8_t *bytes)
 
 bool pfa_t::evict_check_size(uint8_t *bytes)
 {
-  /* We currently can't model the asynchrony of eviction so we just provide
-   * an evict q of length 1 and evict synchronously. */
-  *((reg_t*)bytes) = 1;
+  /* We currently can't model the asynchrony of eviction so we just evict
+   * synchronously and always report an empty queue */
+  *((reg_t*)bytes) = PFA_EVICT_MAX;
   return true;
 }
 

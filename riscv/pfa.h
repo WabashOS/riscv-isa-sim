@@ -30,10 +30,10 @@ extern const char* const _pfa_port_names[];
 #define PFA_PORT_NAME(PORT) _pfa_port_names[PORT / 8]
 
 /* PFA Sizing */
-#define PFA_FREE_MAX  64 
+#define PFA_FREE_MAX  10
 #define PFA_NEW_MAX   PFA_FREE_MAX
 /* We currently can't model multiple outstanding evictions in spike */
-#define PFA_EVICT_MAX 1
+#define PFA_EVICT_MAX 10
 
 typedef uint32_t pgid_t;
 
