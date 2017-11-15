@@ -131,6 +131,11 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   
   pgid_t pageid = pfa_remote_get_pageid(*host_pte);
 
+  if(eviction_in_progress && eviction_pgid == pageid) {
+    pfa_err("Fetching page before eviction is complete\n");
+    return PFA_ERR;
+  }
+
   /* Get the remote page (if it exists) */
   rmem_t::iterator ri = rmem.find(pageid);
   if(ri == rmem.end()) {
@@ -209,15 +214,26 @@ bool pfa_t::check_newpage(uint8_t *bytes)
 
 bool pfa_t::evict_check_size(uint8_t *bytes)
 {
-  /* We currently can't model the asynchrony of eviction so we just evict
-   * synchronously and always report an empty queue */
-  *((reg_t*)bytes) = PFA_EVICT_MAX;
+  /* Simulate polling for completion for one cycle only (eviction is actually
+   * synchronous) */
+  if(eviction_in_progress) {
+    *((reg_t*)bytes) = PFA_EVICT_MAX - 1;
+    eviction_in_progress = false;
+  } else {
+      *((reg_t*)bytes) = PFA_EVICT_MAX;
+  }
   return true;
 }
 
 bool pfa_t::evict_page(const uint8_t *bytes)
 {
   uint64_t evict_val;
+
+  if(eviction_in_progress) {
+    pfa_err("Evicting again without polling for the previous completion\n");
+    return false;
+  }
+
   memcpy(&evict_val, bytes, sizeof(reg_t));
 
   /* Extract the paddr and pgid. See spec for details of evict_val format */
@@ -241,6 +257,8 @@ bool pfa_t::evict_page(const uint8_t *bytes)
     ri->second = page_val;
   }
 
+  eviction_in_progress = true;
+  eviction_pgid = pgid;
   pfa_info("Evicting page at (paddr=0x%lx) (pgid=%d)\n", paddr, pgid);
 
   return true;

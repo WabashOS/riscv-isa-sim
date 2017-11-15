@@ -130,5 +130,9 @@ class pfa_t : public abstract_device_t {
     std::queue<pgid_t> new_pgid_q;
     std::queue<reg_t>  new_vaddr_q;
     rmem_t rmem;
+
+    /* This enforces polling for completion in the evict queue */
+    bool eviction_in_progress = false;
+    pgid_t eviction_pgid;
 };
 #endif
