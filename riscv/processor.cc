@@ -22,7 +22,7 @@
 processor_t::processor_t(const char* isa, sim_t* sim, uint32_t id,
         bool halt_on_reset)
   : debug(false), halt_request(false), sim(sim), ext(NULL), id(id),
-  halt_on_reset(halt_on_reset)
+  halt_on_reset(halt_on_reset), last_pc(1), executions(1)
 {
   parse_isa_string(isa);
   register_base_instructions();
@@ -61,7 +61,7 @@ void processor_t::parse_isa_string(const char* str)
     lowercase += std::tolower(*r);
 
   const char* p = lowercase.c_str();
-  const char* all_subsets = "imafdc";
+  const char* all_subsets = "imafdqc";
 
   max_xlen = 64;
   isa = reg_t(2) << 62;
@@ -74,7 +74,7 @@ void processor_t::parse_isa_string(const char* str)
     p += 2;
 
   if (!*p) {
-    p = all_subsets;
+    p = "imafdc";
   } else if (*p == 'g') { // treat "G" as "IMAFD"
     tmp = std::string("imafd") + (p+1);
     p = &tmp[0];
@@ -104,6 +104,12 @@ void processor_t::parse_isa_string(const char* str)
   }
 
   if (supports_extension('D') && !supports_extension('F'))
+    bad_isa_string(str);
+
+  if (supports_extension('Q') && !supports_extension('D'))
+    bad_isa_string(str);
+
+  if (supports_extension('Q') && max_xlen < 64)
     bad_isa_string(str);
 
   // advertise support for supervisor and user modes
@@ -174,7 +180,7 @@ void processor_t::take_interrupt(reg_t pending_interrupts)
   if (enabled_interrupts == 0)
     enabled_interrupts = pending_interrupts & state.mideleg & -s_enabled;
 
-  if (enabled_interrupts)
+  if (state.dcsr.cause == 0 && enabled_interrupts)
     throw trap_t(((reg_t)1 << (max_xlen-1)) | ctz(enabled_interrupts));
 }
 
@@ -202,7 +208,7 @@ void processor_t::enter_debug_mode(uint8_t cause)
   state.dcsr.prv = state.prv;
   set_privilege(PRV_M);
   state.dpc = state.pc;
-  state.pc = debug_rom_entry();
+  state.pc = DEBUG_ROM_ENTRY;
 }
 
 void processor_t::take_trap(trap_t& t, reg_t epc)
@@ -217,7 +223,7 @@ void processor_t::take_trap(trap_t& t, reg_t epc)
 
   if (state.dcsr.cause) {
     if (t.cause() == CAUSE_BREAKPOINT) {
-      state.pc = debug_rom_entry();
+      state.pc = DEBUG_ROM_ENTRY;
     } else {
       state.pc = DEBUG_ROM_TVEC;
     }
@@ -274,9 +280,6 @@ void processor_t::take_trap(trap_t& t, reg_t epc)
 
 void processor_t::disasm(insn_t insn)
 {
-  static uint64_t last_pc = 1, last_bits;
-  static uint64_t executions = 1;
-
   uint64_t bits = insn.bits() & ((1ULL << (8 * insn_length(insn.bits()))) - 1);
   if (last_pc != state.pc || last_bits != bits) {
     if (executions != 1) {
@@ -357,10 +360,13 @@ void processor_t::set_csr(int which, reg_t val)
       state.mideleg = (state.mideleg & ~delegable_ints) | (val & delegable_ints);
       break;
     case CSR_MEDELEG: {
-      reg_t mask = 0;
-#define DECLARE_CAUSE(name, value) mask |= 1ULL << (value);
-#include "encoding.h"
-#undef DECLARE_CAUSE
+      reg_t mask =
+        (1 << CAUSE_MISALIGNED_FETCH) |
+        (1 << CAUSE_BREAKPOINT) |
+        (1 << CAUSE_USER_ECALL) |
+        (1 << CAUSE_FETCH_PAGE_FAULT) |
+        (1 << CAUSE_LOAD_PAGE_FAULT) |
+        (1 << CAUSE_STORE_PAGE_FAULT);
       state.medeleg = (state.medeleg & ~mask) | (val & mask);
       break;
     }
