@@ -160,7 +160,7 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   /* Copy over remote data into new frame */
   void *host_page = (void*)sim->addr_to_mem(paddr);
   if(host_page == NULL) {
-    pfa_err("Bad physical address: (paddr=%lx)\n", paddr);
+    pfa_err("fetching bad physical address: (paddr=%lx)\n", paddr);
     return PFA_ERR;
   }
   memcpy(host_page, ri->second, 4096);
@@ -277,7 +277,8 @@ bool pfa_t::free_frame(const uint8_t *bytes)
     memcpy(&paddr, bytes, sizeof(reg_t));
     
     if(!sim->addr_to_mem(paddr)) {
-      pfa_err("Invalid paddr for free frame\n");
+      pfa_err("Invalid paddr for free frame: (paddr=0x%lx)\n", paddr);
+      return false;
     }
 
     pfa_info("Adding (paddr=0x%lx) to list of free frames\n", paddr);
