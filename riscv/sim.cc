@@ -48,6 +48,9 @@ sim_t::sim_t(const char* isa, size_t nprocs, bool halted, reg_t start_pc,
   
   pfa.reset(new pfa_t(this));
   bus.add_device(PFA_BASE, pfa.get());
+
+  memblade.reset(new memblade_t(this));
+  bus.add_device(MB_BASE, memblade.get());
 }
 
 sim_t::~sim_t()

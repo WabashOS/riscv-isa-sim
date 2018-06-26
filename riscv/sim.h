@@ -7,6 +7,7 @@
 #include "devices.h"
 #include "debug_module.h"
 #include "pfa.h"
+#include "memblade.h"
 #include <fesvr/htif.h>
 #include <fesvr/context.h>
 #include <vector>
@@ -49,6 +50,7 @@ private:
   std::unique_ptr<rom_device_t> boot_rom;
   std::unique_ptr<clint_t> clint;
   std::unique_ptr<pfa_t> pfa;
+  std::unique_ptr<memblade_t> memblade;
   bus_t bus;
 
   processor_t* get_core(const std::string& i);
@@ -95,6 +97,7 @@ private:
   friend class mmu_t;
   /* pfa_t needs access to host memory */
   friend class pfa_t;
+  friend class memblade_t;
 
   // htif
   friend void sim_thread_main(void*);
