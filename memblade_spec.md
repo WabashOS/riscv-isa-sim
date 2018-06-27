@@ -1,4 +1,4 @@
-This servers as documenation for the memory blade client device. While the
+This serves as documenation for the memory blade client device. While the
 Spike implementation of this device is intended to behave as similar as
 possible to the actual RTL, there are a few caveats that will be called out in
 their respective sections. The main difference is that Spike does not have an
@@ -62,9 +62,11 @@ contains the physical address of this extended header. All multi-byte fields
 use native byte order.
 
 ## PAGE\_READ
-Read a page from a remote memory blade.
+Read a page from a remote memory blade. "pageno" must refer to a page that has
+previously been written. Reading from a page that has never been written to may
+result in arbitrary data.
 
-    CLIENT[DST\_ADDR] <- SERVER[pageno]
+    CLIENT[DST_ADDR] <- SERVER[pageno]
 
 | Argument | Value |
 |----------|-------|
@@ -77,7 +79,7 @@ Read a page from a remote memory blade.
 ## PAGE\_WRITE
 Copy a page from the client to a remote memory blade.
 
-    SERVER[pageno] <- CLIENT[SRC\_ADDR]
+    SERVER[pageno] <- CLIENT[SRC_ADDR]
 
 | Argument | Value |
 |----------|-------|
@@ -88,9 +90,10 @@ Copy a page from the client to a remote memory blade.
 | PAGENO    | Physical address on remote memory blade to write to (must be page aligned) |
 
 ## WORD\_READ
-Read a word from a remote memory blade into client memory.
+Read a word from a remote memory blade into client memory. Reading from a word
+that has never been written to may return arbitrary data.
 
-    CLIENT[DST\_ADDR] <- SERVER[pageno + offset]
+    CLIENT[DST_ADDR] <- SERVER[pageno + offset]
 
 | Argument | Value |
 |----------|-------|
@@ -101,6 +104,7 @@ Read a word from a remote memory blade into client memory.
 | PAGENO    | Physical address of page on remote memory blade to read from (must be page aligned) |
 
 Extended Header:
+
 | Bit Range | Field Name | Description |
 |-----------|------------|-------------|
 | 0:1       | Size       | Size of element 0->1B, 1->2B, 2->4B, 3->8B |
@@ -121,6 +125,7 @@ Write a word from client memory into a remote memory blade.
 | PAGENO    | Physical address of page on remote memory blade to write to (must be page aligned) |
 
 Extended Header:
+
 | Bit Range | Field Name | Description |
 |-----------|------------|-------------|
 | 0:1       | Size       | Size of element 0->1B, 1->2B, 2->4B, 3->8B |
@@ -133,7 +138,8 @@ Extended Header:
 ## ATOMIC\_ADD
 Atomically add to a remote memory location and return the original value.
 
-    SERVER[pageno + offset] <- Value
+    CLIENT[DST_ADDR] = SERVER[pageno + offset]
+    SERVER[pageno + offset] <- SERVER[pageno + offset] + Value
 
 | Argument | Value |
 |----------|-------|
@@ -144,6 +150,7 @@ Atomically add to a remote memory location and return the original value.
 | PAGENO    | Physical address of page on remote memory blade to write to (must be page aligned) |
 
 Extended Header: 
+
 | Bit Range | Field Name | Description |
 |-----------|------------|-------------|
 | 0:1       | Size       | Size of element 0->1B, 1->2B, 2->4B, 3->8B |
@@ -154,10 +161,11 @@ Extended Header:
 
 ## COMP\_SWAP
 Atomically compare and swap a value with remote memory. The logical operation is as follows:
-   if CLIENT(compValue) == SERVER(pageno + offset)
+
+    if compValue == SERVER(pageno + offset)
         CLIENT(DST_ADDR) <- 1 
-        SERVER(pageno + offset) <- CLIENT(Value)
-   else
+        SERVER(pageno + offset) <- Value
+    else
         CLIENT(DST_ADDR) <- 0
 
 | Argument | Value |
@@ -169,6 +177,7 @@ Atomically compare and swap a value with remote memory. The logical operation is
 | PAGENO    | Physical address of page on remote memory blade to swap with (must be page aligned) |
 
 Extended Header:
+
 | Bit Range | Field Name | Description |
 |-----------|------------|-------------|
 | 0:1       | Size       | Size of element 0->1B, 1->2B, 2->4B, 3->8B |

@@ -14,12 +14,37 @@
 #define MB_RESP_ETH_TYPE 0x0508
 #define MB_DRAFT_VERSION 1
 
-#define MB_OC_PAGE_READ 0
-#define MB_OC_PAGE_WRITE 1
-#define MB_OC_WORD_READ 2
-#define MB_OC_WORD_WRITE 3
-#define MB_OC_ATOMIC_ADD 4
-#define MB_OC_COMP_SWAP 5
+typedef enum mb_opcode {
+  MB_OC_PAGE_READ = 0,
+  MB_OC_PAGE_WRITE = 1,
+  MB_OC_WORD_READ = 2,
+  MB_OC_WORD_WRITE = 3,
+  MB_OC_ATOMIC_ADD = 4,
+  MB_OC_COMP_SWAP = 5,
+  MB_OC_LAST
+} mb_opcode_t;
+
+/* Expanded extended header, contains all possible fields, though some may be
+ * unused depending on the opcode */
+typedef struct mb_ext {
+  uint8_t sz; /* Size in bytes */
+  uint16_t off; /* Offset in bytes */
+  uint64_t value; /* Optional value to use */
+  uint64_t compValue; /* Value to compare to (for compare/swap) */
+} mb_ext_t;
+
+static inline uint8_t mb_ext_sz(uint64_t *extdata)
+{
+  return (1 << (extdata[0] & 0x3));
+}
+
+static inline uint16_t mb_ext_off(uint64_t *extdata)
+{
+  return ((extdata[0] >> 4) & 0xFFF);
+}
+
+/* first=pageno of stored page, second=pointer to 4kb buffer holding page */
+typedef std::map<reg_t, uint8_t*> mb_rmem_t;
 
 #define MB_RC_PAGE_OK 0x80
 #define MB_RC_NODATA_OK 0x81
@@ -41,23 +66,6 @@
 /* Forward declare sim_t to avoid circular dep with sim.h */
 class sim_t;
 
-struct memblade_request {
-	uint8_t version;
-	uint8_t opcode;
-	uint8_t part_id;
-	uint8_t reserved;
-	uint32_t xact_id;
-	uint64_t pageno;
-};
-
-struct memblade_response {
-	uint8_t version;
-	uint8_t resp_code;
-	uint8_t part_id;
-	uint8_t reserved;
-	uint32_t xact_id;
-};
-
 static inline uint64_t memblade_make_exthead(int offset, int size)
 {
 	return ((offset & 0xfff) << 4) | (size & 0x3);
@@ -77,6 +85,32 @@ class memblade_t : public abstract_device_t {
 
   private:
     sim_t *sim;
+
+    // Arguments
+    mb_opcode_t oc = MB_OC_LAST;
+    reg_t src = 0;
+    reg_t dst = 0;
+    uint64_t pageno = 0;
+    mb_ext_t ext = {0};
+     
+    // Internal State
+    uint32_t nresp = 0;
+    uint32_t txid = 0;
+    mb_rmem_t rmem;
+
+    bool send_request(uint8_t *bytes);
+
+    /* Parse a raw extended header into the expanded mb_ext_t struct.  Assumes
+     * that all 3 words of the raw extended header can be safely read, even if
+     * they don't contain meaningful data. */
+    mb_ext_t parse_ext(uint64_t *extdata);
+
+    bool page_read(void); 
+    bool page_write(void);
+    bool word_read(void);
+    bool word_write(void);
+    bool atomic_add(void);
+    bool comp_swap(void);
 };
 
 #endif
