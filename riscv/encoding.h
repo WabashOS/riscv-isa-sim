@@ -154,7 +154,7 @@
 #define PFA_BASE           0x10017000 
 #define PFA_SIZE           0x00001000
 // XXX Gotta figure out these addresses properly
-#define MB_BASE      0x10016000
+#define MB_BASE      0x10018000
 #define MB_SIZE      0x00001000
 #define CLINT_BASE         0x02000000
 #define CLINT_SIZE         0x000c0000
