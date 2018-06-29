@@ -21,8 +21,7 @@
 #define PFA_NEWPGID   32
 #define PFA_NEWVADDR  40
 #define PFA_NEWSTAT   48
-#define PFA_INITMEM   56
-#define PFA_PORT_LAST 56
+#define PFA_PORT_LAST 48
 
 /* Human-readable names for MMIO ports. Use PFA_PORT_NAME() to use. */
 extern const char* const _pfa_port_names[];
@@ -120,9 +119,6 @@ class pfa_t : public abstract_device_t {
     /* Enqueu a free frame to be used on the next page fault 
      * bytes: paddr of frame. */
     bool free_frame(const uint8_t *bytes);
-
-    /* Provide a page to the PFA to use for its own purposes */
-    bool init_mem(const uint8_t *bytes);
 
     sim_t *sim;
 

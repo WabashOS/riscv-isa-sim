@@ -90,7 +90,6 @@ Fields
 | NEW_PGID   | BASE + 32  |
 | NEW_VADDR  | BASE + 40  |
 | NEW_STAT   | BASE + 48  |
-| INIT_MEM   | BASE + 56  |
   
 Basic PFA MMIO behavior is described below. Operations marked “Illegal” will
 result in a load/store access fault.
@@ -202,15 +201,4 @@ Returned Value: Number of new pages in the queue.
 It is required to pop both queues together.
  
 ### Store
-Illegal
-
-## INIT_MEM
-Provide 1 page of scratch memory to the PFA. Software must not write to this
-page after registering it with the PFA. There is no way to revoke or
-de-initialize the PFA.
-
-### Store
-Expected Value: Physical address of 1 page of memory to be used by the PFA
-
-### Load
 Illegal

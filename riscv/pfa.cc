@@ -11,7 +11,6 @@ const char* const _pfa_port_names[PFA_NPORTS] = {
   "NEW_PGID",
   "NEW_VADDR",
   "NEW_STAT",
-  "INIT_MEMORY"
 };
 
 /* Generic Helpers */
@@ -27,35 +26,10 @@ reg_t pfa_mk_local_pte(reg_t rem_pte, uintptr_t paddr)
   return local_pte;
 }
 
-/* PFA scratch page */
-reg_t pfa_scratch_gaddr = 0;    /* Guest Address */
-uint64_t *pfa_scratch_haddr = NULL; /* Host Address */
-
-/* Check that the guest hasn't messed with our private scratch page */
-#define PFA_SCRATCH_VAL 0xDEADBEEFCAFEBABE /* arbitrary 64b value */
-static bool pfa_check_scratch(void) {
-  if(!pfa_scratch_haddr) {
-    pfa_err("Scratch page not initialized!\n");
-    return false;
-  }
-
-  for(size_t i = 0; i < 4096 / sizeof(pfa_scratch_haddr[0]); i++) {
-    if(pfa_scratch_haddr[i] != PFA_SCRATCH_VAL) {
-      pfa_err("Scratch page corrupted: scratch[%ld]=%lx!\n",
-          i, pfa_scratch_haddr[i]); 
-      return false;
-    }
-  }
-  return true;
-}
-
 bool pfa_t::load(reg_t addr, size_t len, uint8_t* bytes)
 {
   /* Only word-sized values accepted */
   assert(len == sizeof(reg_t));
-
-  if(!pfa_check_scratch())
-    return false;
 
   switch(addr) {
     case PFA_FREESTAT:
@@ -88,19 +62,10 @@ bool pfa_t::store(reg_t addr, size_t len, const uint8_t* bytes)
 
   switch(addr) {
     case PFA_FREEFRAME:
-      if(!pfa_check_scratch())
-        return false;
-
       return free_frame(bytes);
 
     case PFA_EVICTPAGE:
-      if(!pfa_check_scratch())
-        return false;
-
       return evict_page(bytes);
-
-    case PFA_INITMEM:
-      return init_mem(bytes);
 
     default:
       if(addr % 8 != 0 || addr > PFA_PORT_LAST) {
@@ -288,28 +253,4 @@ bool pfa_t::free_frame(const uint8_t *bytes)
     pfa_err("Attempted to push to full free queue\n");
     return false;
   }
-}
-
-bool pfa_t::init_mem(const uint8_t *bytes) {
-  memcpy(&pfa_scratch_gaddr, bytes, sizeof(reg_t));
-
-  pfa_info("Registering page at (paddr=0x%lx) as PFA scratch area\n",
-      pfa_scratch_gaddr);
-
-  if(pfa_scratch_haddr) {
-    pfa_err("Scratch area already registered!\n");
-    return false;
-  }
-  
-  pfa_scratch_haddr = (uint64_t*)sim->addr_to_mem(pfa_scratch_gaddr);
-  if(!pfa_scratch_haddr) {
-    pfa_err("Invalid physical address for scratch area\n");
-    return false;
-  }
-
-  for(size_t i = 0; i < 4096 / sizeof(pfa_scratch_haddr[0]); i++) {
-    pfa_scratch_haddr[i] = PFA_SCRATCH_VAL;
-  }
-
-  return true;
 }
