@@ -90,6 +90,7 @@ Fields
 | NEW_PGID   | BASE + 32  |
 | NEW_VADDR  | BASE + 40  |
 | NEW_STAT   | BASE + 48  |
+| DSTMAC     | BASE + 56  |
   
 Basic PFA MMIO behavior is described below. Operations marked “Illegal” will
 result in a load/store access fault.
@@ -202,3 +203,14 @@ It is required to pop both queues together.
  
 ### Store
 Illegal
+
+## DSTMAC
+Set the MAC address of the memory blade to use as backing store.
+
+### Load
+Illegal
+
+### Store
+Expected Value: A Valid MAC address for a memory blade. This blade will be used
+for all PFA traffic. There is currently no mechanism for using multiple memory
+blades.

@@ -67,6 +67,10 @@ bool pfa_t::store(reg_t addr, size_t len, const uint8_t* bytes)
     case PFA_EVICTPAGE:
       return evict_page(bytes);
 
+    case PFA_DSTMAC:
+      /* Spike ignores this field */
+      return true;
+
     default:
       if(addr % 8 != 0 || addr > PFA_PORT_LAST) {
         pfa_err("Unrecognized store to PFA offset %ld\n", addr);

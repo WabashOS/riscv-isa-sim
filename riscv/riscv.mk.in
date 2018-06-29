@@ -9,6 +9,7 @@ riscv_install_prog_srcs = \
 riscv_hdrs = \
 	pfa.h \
 	memblade.h \
+	nic.h \
 	common.h \
 	decode.h \
 	devices.h \
@@ -50,6 +51,7 @@ riscv_srcs = \
 	clint.cc \
 	pfa.cc \
 	memblade.cc \
+	nic.cc \
 	debug_module.cc \
 	remote_bitbang.cc \
 	jtag_dtm.cc \

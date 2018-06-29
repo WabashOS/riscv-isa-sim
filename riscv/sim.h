@@ -8,6 +8,7 @@
 #include "debug_module.h"
 #include "pfa.h"
 #include "memblade.h"
+#include "nic.h"
 #include <fesvr/htif.h>
 #include <fesvr/context.h>
 #include <vector>
@@ -51,6 +52,7 @@ private:
   std::unique_ptr<clint_t> clint;
   std::unique_ptr<pfa_t> pfa;
   std::unique_ptr<memblade_t> memblade;
+  std::unique_ptr<nic_t> nic;
   bus_t bus;
 
   processor_t* get_core(const std::string& i);

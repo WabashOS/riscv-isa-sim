@@ -51,6 +51,9 @@ sim_t::sim_t(const char* isa, size_t nprocs, bool halted, reg_t start_pc,
 
   memblade.reset(new memblade_t(this));
   bus.add_device(MB_BASE, memblade.get());
+
+  nic.reset(new nic_t());
+  bus.add_device(NIC_BASE, nic.get());
 }
 
 sim_t::~sim_t()

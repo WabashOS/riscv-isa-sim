@@ -21,7 +21,8 @@
 #define PFA_NEWPGID   32
 #define PFA_NEWVADDR  40
 #define PFA_NEWSTAT   48
-#define PFA_PORT_LAST 48
+#define PFA_DSTMAC    56
+#define PFA_PORT_LAST 56 
 
 /* Human-readable names for MMIO ports. Use PFA_PORT_NAME() to use. */
 extern const char* const _pfa_port_names[];
