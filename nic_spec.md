@@ -17,4 +17,7 @@ register so that code that depends on a local MAC address can still work.
 | CKSUM\_REQ    | BASE + 40  |
 
 ## MACADDR
-Returns the currently configured MAC address of this NIC
+Returns the currently configured MAC address of this NIC.
+
+## COUNTS
+Returns limits for the NIC queues. Currently configured to return 0 every time.
