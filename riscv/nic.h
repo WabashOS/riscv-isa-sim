@@ -2,7 +2,8 @@
 #include "encoding.h"
 #include "stdint.h"
 
-#define NIC_IO_MACADDR 24
+#define NIC_IO_COUNTS  20L
+#define NIC_IO_MACADDR 24L
 
 class nic_t : public abstract_device_t {
   public:
