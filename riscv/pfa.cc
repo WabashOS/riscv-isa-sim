@@ -99,14 +99,15 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   }
   
   pgid_t pageid = pfa_remote_get_pageid(*host_pte);
+  uint64_t rem_ppn = pfa_pgid_to_ppn(pageid);
 
-  if(eviction_in_progress && eviction_pgid == pageid) {
+  if(eviction_in_progress && eviction_rem_ppn == rem_ppn) {
     pfa_err("Fetching page before eviction is complete\n");
     return PFA_ERR;
   }
 
   /* Get the remote page (if it exists) */
-  rmem_t::iterator ri = rmem.find(pageid);
+  rmem_t::iterator ri = rmem.find(rem_ppn);
   if(ri == rmem.end()) {
     /* not found */
     pfa_err("Requested (vaddr=0x%lx) not in remote memory\n", vaddr);
@@ -123,7 +124,7 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   /* Assign ppn to pte and make local*/
   *host_pte = pfa_mk_local_pte(*host_pte, paddr);
 
-  pfa_info("fetching (vaddr=0x%lx) into (paddr=0x%lx), (pgid=%d), (pte=0x%lx)\n",
+  pfa_info("fetching (vaddr=0x%lx) into (paddr=0x%lx), (pgid=%lx), (pte=0x%lx)\n",
       vaddr, paddr, pageid, *host_pte);
 
   /* Copy over remote data into new frame */
@@ -151,7 +152,7 @@ bool pfa_t::pop_newpgid(uint8_t *bytes)
     new_pgid_q.pop();
   }
 
-  pfa_info("Reporting newpage (pgid=%d)\n", pgid);
+  pfa_info("Reporting newpage (pgid=%lx)\n", pgid);
   reg_t wide_pgid = (reg_t)pgid;
   memcpy(bytes, &wide_pgid, sizeof(reg_t));
   return true;
@@ -207,7 +208,7 @@ bool pfa_t::evict_page(const uint8_t *bytes)
 
   /* Extract the paddr and pgid. See spec for details of evict_val format */
   uint64_t paddr = (evict_val << 28) >> 16;
-  pgid_t pgid  = (evict_val >> 36);
+  pgid_t rem_ppn  = (evict_val >> 36);
 
   /* Copy page out to remote buffer */
   uint8_t *page_val = new uint8_t[4096];
@@ -218,7 +219,7 @@ bool pfa_t::evict_page(const uint8_t *bytes)
   }
   memcpy(page_val, host_page, 4096);
 
-  auto res = rmem.emplace(pgid, page_val);
+  auto res = rmem.emplace(rem_ppn, page_val);
   if(res.second == false) {
     /* Replacing an existing entry */
     auto ri = res.first;
@@ -227,8 +228,8 @@ bool pfa_t::evict_page(const uint8_t *bytes)
   }
 
   eviction_in_progress = true;
-  eviction_pgid = pgid;
-  pfa_info("Evicting page at (paddr=0x%lx) (pgid=%d)\n", paddr, pgid);
+  eviction_rem_ppn = rem_ppn;
+  pfa_info("Evicting page at (paddr=0x%lx) (remote ppn=%lx)\n", paddr, rem_ppn);
 
   return true;
 }

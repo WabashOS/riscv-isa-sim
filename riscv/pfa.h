@@ -35,7 +35,11 @@ extern const char* const _pfa_port_names[];
 /* We currently can't model multiple outstanding evictions in spike */
 #define PFA_EVICT_MAX 64
 
-typedef uint32_t pgid_t;
+typedef uint64_t pgid_t;
+// How many bits in the PPN component of a page ID (these are in the lsbs) 
+#define PFA_PGID_PPN_BITS 28
+// How many bits in the SW reserved component of a page ID (comes right after ppn)
+#define PFA_PGID_SW_BITS  24
 
 typedef enum pfa_err {
   PFA_OK,      //Success
@@ -54,10 +58,16 @@ class sim_t;
 /* Generic public PFA helper functions */
 
 /* Check if a pte refers to a remote page */
-#define pte_is_remote(pte) (!(pte & PTE_V) && (pte & PFA_REMOTE))
+#define pte_is_remote(PTE) (!(PTE & PTE_V) && (PTE & PFA_REMOTE))
 
 /* extract the page id from a remote pte */
-#define pfa_remote_get_pageid(pte) ((pgid_t)(pte >> PFA_PAGEID_SHIFT))
+#define pfa_remote_get_pageid(PTE) ((pgid_t)(PTE >> PFA_PAGEID_SHIFT))
+
+/* extract the ppn from a pgid */
+#define pfa_pgid_to_ppn(PGID) (PGID & ((1 << PFA_PGID_SW_BITS) - 1))
+
+/* extract the sw reserved bits from a pgid */
+#define pfa_pgid_to_sw(PGID) (PGID >> PFA_PGID_SW_BITS)
 
 /* Create a local PTE out of a remote pte and a physical address.
  * Note: destroys pageID, extract it first if you want it */
@@ -130,6 +140,6 @@ class pfa_t : public abstract_device_t {
 
     /* This enforces polling for completion in the evict queue */
     bool eviction_in_progress = false;
-    pgid_t eviction_pgid;
+    pgid_t eviction_rem_ppn;
 };
 #endif
