@@ -64,10 +64,10 @@ class sim_t;
 #define pfa_remote_get_pageid(PTE) ((pgid_t)(PTE >> PFA_PAGEID_SHIFT))
 
 /* extract the ppn from a pgid */
-#define pfa_pgid_to_ppn(PGID) (PGID & ((1 << PFA_PGID_SW_BITS) - 1))
+#define pfa_pgid_to_ppn(PGID) (PGID & ((1 << PFA_PGID_PPN_BITS) - 1))
 
 /* extract the sw reserved bits from a pgid */
-#define pfa_pgid_to_sw(PGID) (PGID >> PFA_PGID_SW_BITS)
+#define pfa_pgid_to_sw(PGID) (PGID >> PFA_PGID_PPN_BITS)
 
 /* Create a local PTE out of a remote pte and a physical address.
  * Note: destroys pageID, extract it first if you want it */
