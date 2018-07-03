@@ -21,7 +21,7 @@ to MB\_BASE), see below for detailed descriptions of each command.
 | MB\_DST\_ADDR | 0x08   | W   | 8        | Physical page address on the client (usage depends on opcode) |
 | MB\_DSTMAC    | 0x10   | W   | 8        | MAC address of memory blade server to use (ignored in Spike model) |
 | MB\_OPCODE    | 0x16   | W   | 1        | Which operation to perform |
-| MB\_PAGENO    | 0x18   | W   | 8        | Physical address on memory blade server for request (usage depends on opcode)  |
+| MB\_PAGENO    | 0x18   | W   | 8        | PPN on memory blade to use for this request |
 | MB\_REQ       | 0x20   | R   | 4        | Request sent notification (contains transaction IDs for requests) |
 | MB\_RESP      | 0x24   | R   | 4        | Response received notification (contains transaction ID for response) |
 | MB\_NREQ      | 0x28   | R   | 4        | Number of available request slots |
@@ -74,7 +74,7 @@ result in arbitrary data.
 | DST\_ADDR | Physical address on client to write remote page into (must be page aligned) |
 | DSTMAC    | MAC address of remote memory blade |
 | OPCODE    | 0 |
-| PAGENO    | Physical address on remote memory blade to read from (must be page aligned) |
+| PAGENO    | PPN on memory blade to use for this request |
 
 ## PAGE\_WRITE
 Copy a page from the client to a remote memory blade.
@@ -87,7 +87,7 @@ Copy a page from the client to a remote memory blade.
 | DST\_ADDR | N/A |
 | DSTMAC    | MAC address of remote memory blade |
 | OPCODE    | 1 |
-| PAGENO    | Physical address on remote memory blade to write to (must be page aligned) |
+| PAGENO    | PPN on memory blade to use for this request |
 
 ## WORD\_READ
 Read a word from a remote memory blade into client memory. Reading from a word
@@ -101,7 +101,7 @@ that has never been written to may return arbitrary data.
 | DST\_ADDR | Physical address on client to write remote page into (must be word aligned) |
 | DSTMAC    | MAC address of remote memory blade |
 | OPCODE    | 2 |
-| PAGENO    | Physical address of page on remote memory blade to read from (must be page aligned) |
+| PAGENO    | PPN on memory blade to use for this request |
 
 Extended Header:
 
@@ -122,7 +122,7 @@ Write a word from client memory into a remote memory blade.
 | DST\_ADDR | N/A |
 | DSTMAC    | MAC address of remote memory blade |
 | OPCODE    | 3 |
-| PAGENO    | Physical address of page on remote memory blade to write to (must be page aligned) |
+| PAGENO    | PPN on memory blade to use for this request |
 
 Extended Header:
 
@@ -147,7 +147,7 @@ Atomically add to a remote memory location and return the original value.
 | DST\_ADDR | Physical address of client memory to write original value into |
 | DSTMAC    | MAC address of remote memory blade |
 | OPCODE    | 4 |
-| PAGENO    | Physical address of page on remote memory blade to write to (must be page aligned) |
+| PAGENO    | PPN on memory blade to use for this request |
 
 Extended Header: 
 
@@ -174,7 +174,7 @@ Atomically compare and swap a value with remote memory. The logical operation is
 | DST\_ADDR | Physical address on client to write success/failure (1/0) to |
 | DSTMAC    | MAC address of remote memory blade |
 | OPCODE    | 5 |
-| PAGENO    | Physical address of page on remote memory blade to swap with (must be page aligned) |
+| PAGENO    | PPN on memory blade to use for this request |
 
 Extended Header:
 
