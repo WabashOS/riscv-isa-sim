@@ -58,7 +58,7 @@ Remote pages use a unique PTE format:
 
 ```
 63         40                  12             2        1       0
-|  Unused  |      Page ID      |  protection  | remote | valid |
+|  swres   |     remote ppn    |  protection  | remote | valid |
 ```
 
 Fields
@@ -76,8 +76,13 @@ Fields
   * _Note_: This includes a valid bit which may differ from the Remote PTE
     valid bit. If this is 'invalid', the PFA will fetch the remote page, but
     then trigger a page-fault anyway.
-* **Page ID:** A unique identifier for this page.
-  * Must match a pageID that was evicted and not-yet-fetched.
+* **remote ppn:** Page number on remote memory blade for this page
+  * Must match the remote ppn of a page that was evicted and not-yet-fetched.
+* **swres:** Reserved for software
+  * This is intended to be used by the OS to make remote pages unique within the system (e.g. by adding a taskID)
+  * This will be passed back to the OS when reporting a new page
+
+**NOTE:** The combination of swres and remote ppn are referred to as a pageID.
 
 # MMIO
 | Name       | Value      |
@@ -132,14 +137,12 @@ Expected Value: Packed eviction uint64 containing pfn and pgid
 Eviction requires two values (packed into a single 8-byte value, see below):
 * pfn: Page frame number. This is the physical address of the page shifted 12b
   to the right (since the first 12b are always 0 in page-aligned adresses).
-* Page ID:  A unique 28-bit value to be associated with the page. Must be unique
-  among all currently evicted pages (pgids may be reused after being seen in
-  the newq)
+* remote ppn: Physical page number on the remote memory device to store page. 
 
 The two values must be packed into a single 8-byte value as follows:
 ```
 63                        36                            0
-|         Page ID         |            pfn              |
+|       remote ppn        |            pfn              |
 ```
 
 Eviction is asynchronous. Multiple pages may be enqueued for eviction
@@ -168,6 +171,13 @@ bookkeeping)
 ### Load
 Returned Value: Page ID of oldest fetched page that has not been reported (FIFO
 order).
+
+The Page ID consists of the swres and remote ppn as placed into the remote PTE
+and is represented as follows:
+```
+63                  32         27                   0
+|         0         |  swres   |     remote ppn     |
+```
 
 **Note**: It is illegal to load from an empty new queue. You must check
 NEW_STAT before loading from NEW.
