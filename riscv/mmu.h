@@ -26,7 +26,7 @@ struct insn_fetch_t
 
 struct icache_entry_t {
   reg_t tag;
-  reg_t pad;
+  struct icache_entry_t* next;
   insn_fetch_t data;
 };
 
@@ -53,7 +53,7 @@ class trigger_matched_t
 class mmu_t
 {
 public:
-  mmu_t(sim_t* sim, processor_t* proc);
+  mmu_t(simif_t* sim, processor_t* proc);
   ~mmu_t();
 
   inline reg_t misaligned_load(reg_t addr, size_t size)
@@ -144,10 +144,10 @@ public:
         return lhs; \
       } catch (trap_load_page_fault& t) { \
         /* AMO faults should be reported as store faults */ \
-        throw trap_store_page_fault(t.get_badaddr()); \
+        throw trap_store_page_fault(t.get_tval()); \
       } catch (trap_load_access_fault& t) { \
         /* AMO faults should be reported as store faults */ \
-        throw trap_store_access_fault(t.get_badaddr()); \
+        throw trap_store_access_fault(t.get_tval()); \
       } \
     }
 
@@ -209,6 +209,7 @@ public:
 
     insn_fetch_t fetch = {proc->decode_insn(insn), insn};
     entry->tag = addr;
+    entry->next = &icache[icache_index(addr + length)];
     entry->data = fetch;
 
     reg_t paddr = tlb_entry.target_offset + addr;;
@@ -238,8 +239,26 @@ public:
 
   void register_memtracer(memtracer_t*);
 
+  int is_dirty_enabled()
+  {
+#ifdef RISCV_ENABLE_DIRTY
+    return 1;
+#else
+    return 0;
+#endif
+  }
+
+  int is_misaligned_enabled()
+  {
+#ifdef RISCV_ENABLE_MISALIGNED
+    return 1;
+#else
+    return 0;
+#endif
+  }
+
 private:
-  sim_t* sim;
+  simif_t* sim;
   processor_t* proc;
   memtracer_list_t tracer;
   uint16_t fetch_temp;
@@ -320,23 +339,23 @@ struct vm_info {
   reg_t ptbase;
 };
 
-inline vm_info decode_vm_info(int xlen, reg_t prv, reg_t sptbr)
+inline vm_info decode_vm_info(int xlen, reg_t prv, reg_t satp)
 {
   if (prv == PRV_M) {
     return {0, 0, 0, 0};
   } else if (prv <= PRV_S && xlen == 32) {
-    switch (get_field(sptbr, SPTBR32_MODE)) {
-      case SPTBR_MODE_OFF: return {0, 0, 0, 0};
-      case SPTBR_MODE_SV32: return {2, 10, 4, (sptbr & SPTBR32_PPN) << PGSHIFT};
+    switch (get_field(satp, SATP32_MODE)) {
+      case SATP_MODE_OFF: return {0, 0, 0, 0};
+      case SATP_MODE_SV32: return {2, 10, 4, (satp & SATP32_PPN) << PGSHIFT};
       default: abort();
     }
   } else if (prv <= PRV_S && xlen == 64) {
-    switch (get_field(sptbr, SPTBR64_MODE)) {
-      case SPTBR_MODE_OFF: return {0, 0, 0, 0};
-      case SPTBR_MODE_SV39: return {3, 9, 8, (sptbr & SPTBR64_PPN) << PGSHIFT};
-      case SPTBR_MODE_SV48: return {4, 9, 8, (sptbr & SPTBR64_PPN) << PGSHIFT};
-      case SPTBR_MODE_SV57: return {5, 9, 8, (sptbr & SPTBR64_PPN) << PGSHIFT};
-      case SPTBR_MODE_SV64: return {6, 9, 8, (sptbr & SPTBR64_PPN) << PGSHIFT};
+    switch (get_field(satp, SATP64_MODE)) {
+      case SATP_MODE_OFF: return {0, 0, 0, 0};
+      case SATP_MODE_SV39: return {3, 9, 8, (satp & SATP64_PPN) << PGSHIFT};
+      case SATP_MODE_SV48: return {4, 9, 8, (satp & SATP64_PPN) << PGSHIFT};
+      case SATP_MODE_SV57: return {5, 9, 8, (satp & SATP64_PPN) << PGSHIFT};
+      case SATP_MODE_SV64: return {6, 9, 8, (satp & SATP64_PPN) << PGSHIFT};
       default: abort();
     }
   } else {

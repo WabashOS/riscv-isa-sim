@@ -19,7 +19,7 @@
 #undef STATE
 #define STATE state
 
-processor_t::processor_t(const char* isa, sim_t* sim, uint32_t id,
+processor_t::processor_t(const char* isa, simif_t* sim, uint32_t id,
         bool halt_on_reset)
   : debug(false), halt_request(false), sim(sim), ext(NULL), id(id),
   halt_on_reset(halt_on_reset), last_pc(1), executions(1)
@@ -64,10 +64,10 @@ void processor_t::parse_isa_string(const char* str)
   const char* all_subsets = "imafdqc";
 
   max_xlen = 64;
-  isa = reg_t(2) << 62;
+  state.misa = reg_t(2) << 62;
 
   if (strncmp(p, "rv32", 4) == 0)
-    max_xlen = 32, isa = reg_t(1) << 30, p += 4;
+    max_xlen = 32, state.misa = reg_t(1) << 30, p += 4;
   else if (strncmp(p, "rv64", 4) == 0)
     p += 4;
   else if (strncmp(p, "rv", 2) == 0)
@@ -83,11 +83,11 @@ void processor_t::parse_isa_string(const char* str)
   }
 
   isa_string = "rv" + std::to_string(max_xlen) + p;
-  isa |= 1L << ('s' - 'a'); // advertise support for supervisor mode
-  isa |= 1L << ('u' - 'a'); // advertise support for user mode
+  state.misa |= 1L << ('s' - 'a'); // advertise support for supervisor mode
+  state.misa |= 1L << ('u' - 'a'); // advertise support for user mode
 
   while (*p) {
-    isa |= 1L << (*p - 'a');
+    state.misa |= 1L << (*p - 'a');
 
     if (auto next = strchr(all_subsets, *p)) {
       all_subsets = next + 1;
@@ -112,16 +112,13 @@ void processor_t::parse_isa_string(const char* str)
   if (supports_extension('Q') && max_xlen < 64)
     bad_isa_string(str);
 
-  // advertise support for supervisor and user modes
-  isa |= 1L << ('s' - 'a');
-  isa |= 1L << ('u' - 'a');
-
-  max_isa = isa;
+  max_isa = state.misa;
 }
 
-void state_t::reset()
+void state_t::reset(reg_t max_isa)
 {
   memset(this, 0, sizeof(*this));
+  misa = max_isa;
   prv = PRV_M;
   pc = DEFAULT_RSTVEC;
   load_reservation = -1;
@@ -150,13 +147,16 @@ void processor_t::set_histogram(bool value)
 
 void processor_t::reset()
 {
-  state.reset();
+  state.reset(max_isa);
   state.dcsr.halt = halt_on_reset;
   halt_on_reset = false;
   set_csr(CSR_MSTATUS, state.mstatus);
 
   if (ext)
     ext->reset(); // reset the extension
+
+  if (sim)
+    sim->proc_reset(id);
 }
 
 // Count number of contiguous 0 bits starting from the LSB.
@@ -177,11 +177,28 @@ void processor_t::take_interrupt(reg_t pending_interrupts)
 
   reg_t sie = get_field(state.mstatus, MSTATUS_SIE);
   reg_t s_enabled = state.prv < PRV_S || (state.prv == PRV_S && sie);
+  // M-ints have highest priority; consider S-ints only if no M-ints pending
   if (enabled_interrupts == 0)
     enabled_interrupts = pending_interrupts & state.mideleg & -s_enabled;
 
-  if (state.dcsr.cause == 0 && enabled_interrupts)
+  if (state.dcsr.cause == 0 && enabled_interrupts) {
+    // nonstandard interrupts have highest priority
+    if (enabled_interrupts >> IRQ_M_EXT)
+      enabled_interrupts = enabled_interrupts >> IRQ_M_EXT << IRQ_M_EXT;
+    // external interrupts have next-highest priority
+    else if (enabled_interrupts & (MIP_MEIP | MIP_SEIP))
+      enabled_interrupts = enabled_interrupts & (MIP_MEIP | MIP_SEIP);
+    // software interrupts have next-highest priority
+    else if (enabled_interrupts & (MIP_MSIP | MIP_SSIP))
+      enabled_interrupts = enabled_interrupts & (MIP_MSIP | MIP_SSIP);
+    // timer interrupts have next-highest priority
+    else if (enabled_interrupts & (MIP_MTIP | MIP_STIP))
+      enabled_interrupts = enabled_interrupts & (MIP_MTIP | MIP_STIP);
+    else
+      abort();
+
     throw trap_t(((reg_t)1 << (max_xlen-1)) | ctz(enabled_interrupts));
+  }
 }
 
 static int xlen_to_uxl(int xlen)
@@ -193,13 +210,23 @@ static int xlen_to_uxl(int xlen)
   abort();
 }
 
-void processor_t::set_privilege(reg_t prv)
+reg_t processor_t::legalize_privilege(reg_t prv)
 {
   assert(prv <= PRV_M);
-  if (prv == PRV_H)
-    prv = PRV_U;
+
+  if (!supports_extension('U'))
+    return PRV_M;
+
+  if (prv == PRV_H || !supports_extension('S'))
+    return PRV_U;
+
+  return prv;
+}
+
+void processor_t::set_privilege(reg_t prv)
+{
   mmu->flush_tlb();
-  state.prv = prv;
+  state.prv = legalize_privilege(prv);
 }
 
 void processor_t::enter_debug_mode(uint8_t cause)
@@ -216,9 +243,9 @@ void processor_t::take_trap(trap_t& t, reg_t epc)
   if (debug) {
     fprintf(stderr, "core %3d: exception %s, epc 0x%016" PRIx64 "\n",
             id, t.name(), epc);
-    if (t.has_badaddr())
-      fprintf(stderr, "core %3d:           badaddr 0x%016" PRIx64 "\n", id,
-          t.get_badaddr());
+    if (t.has_tval())
+      fprintf(stderr, "core %3d:           tval 0x%016" PRIx64 "\n", id,
+          t.get_tval());
   }
 
   if (state.dcsr.cause) {
@@ -232,7 +259,6 @@ void processor_t::take_trap(trap_t& t, reg_t epc)
 
   if (t.cause() == CAUSE_BREAKPOINT && (
               (state.prv == PRV_M && state.dcsr.ebreakm) ||
-              (state.prv == PRV_H && state.dcsr.ebreakh) ||
               (state.prv == PRV_S && state.dcsr.ebreaks) ||
               (state.prv == PRV_U && state.dcsr.ebreaku))) {
     enter_debug_mode(DCSR_CAUSE_SWBP);
@@ -250,8 +276,7 @@ void processor_t::take_trap(trap_t& t, reg_t epc)
     state.pc = state.stvec;
     state.scause = t.cause();
     state.sepc = epc;
-    if (t.has_badaddr())
-      state.sbadaddr = t.get_badaddr();
+    state.stval = t.get_tval();
 
     reg_t s = state.mstatus;
     s = set_field(s, MSTATUS_SPIE, get_field(s, MSTATUS_SIE));
@@ -264,8 +289,7 @@ void processor_t::take_trap(trap_t& t, reg_t epc)
     state.pc = (state.mtvec & ~(reg_t)1) + vector;
     state.mepc = epc;
     state.mcause = t.cause();
-    if (t.has_badaddr())
-      state.mbadaddr = t.get_badaddr();
+    state.mtval = t.get_tval();
 
     reg_t s = state.mstatus;
     s = set_field(s, MSTATUS_MPIE, get_field(s, MSTATUS_MIE));
@@ -328,10 +352,15 @@ void processor_t::set_csr(int which, reg_t val)
         mmu->flush_tlb();
 
       reg_t mask = MSTATUS_SIE | MSTATUS_SPIE | MSTATUS_MIE | MSTATUS_MPIE
-                 | MSTATUS_SPP | MSTATUS_FS | MSTATUS_MPRV | MSTATUS_SUM
-                 | MSTATUS_MPP | MSTATUS_MXR | MSTATUS_TW | MSTATUS_TVM
+                 | MSTATUS_FS | MSTATUS_MPRV | MSTATUS_SUM
+                 | MSTATUS_MXR | MSTATUS_TW | MSTATUS_TVM
                  | MSTATUS_TSR | MSTATUS_UXL | MSTATUS_SXL |
                  (ext ? MSTATUS_XS : 0);
+
+      reg_t requested_mpp = legalize_privilege(get_field(val, MSTATUS_MPP));
+      state.mstatus = set_field(state.mstatus, MSTATUS_MPP, requested_mpp);
+      if (supports_extension('S'))
+        mask |= MSTATUS_SPP;
 
       state.mstatus = (state.mstatus & ~mask) | (val & mask);
 
@@ -342,6 +371,7 @@ void processor_t::set_csr(int which, reg_t val)
       else
         state.mstatus = set_field(state.mstatus, MSTATUS64_SD, dirty);
 
+      state.mstatus = set_field(state.mstatus, MSTATUS_UXL, xlen_to_uxl(max_xlen));
       state.mstatus = set_field(state.mstatus, MSTATUS_UXL, xlen_to_uxl(max_xlen));
       state.mstatus = set_field(state.mstatus, MSTATUS_SXL, xlen_to_uxl(max_xlen));
       // U-XLEN == S-XLEN == M-XLEN
@@ -399,27 +429,31 @@ void processor_t::set_csr(int which, reg_t val)
     case CSR_SIE:
       return set_csr(CSR_MIE,
                      (state.mie & ~state.mideleg) | (val & state.mideleg));
-    case CSR_SPTBR: {
+    case CSR_SATP: {
       mmu->flush_tlb();
       if (max_xlen == 32)
-        state.sptbr = val & (SPTBR32_PPN | SPTBR32_MODE);
-      if (max_xlen == 64 && (get_field(val, SPTBR64_MODE) == SPTBR_MODE_OFF ||
-                             get_field(val, SPTBR64_MODE) == SPTBR_MODE_SV39 ||
-                             get_field(val, SPTBR64_MODE) == SPTBR_MODE_SV48))
-        state.sptbr = val & (SPTBR64_PPN | SPTBR64_MODE);
+        state.satp = val & (SATP32_PPN | SATP32_MODE);
+      if (max_xlen == 64 && (get_field(val, SATP64_MODE) == SATP_MODE_OFF ||
+                             get_field(val, SATP64_MODE) == SATP_MODE_SV39 ||
+                             get_field(val, SATP64_MODE) == SATP_MODE_SV48))
+        state.satp = val & (SATP64_PPN | SATP64_MODE);
       break;
     }
-    case CSR_SEPC: state.sepc = val; break;
+    case CSR_SEPC: state.sepc = val & ~(reg_t)1; break;
     case CSR_STVEC: state.stvec = val >> 2 << 2; break;
     case CSR_SSCRATCH: state.sscratch = val; break;
     case CSR_SCAUSE: state.scause = val; break;
-    case CSR_SBADADDR: state.sbadaddr = val; break;
-    case CSR_MEPC: state.mepc = val; break;
+    case CSR_STVAL: state.stval = val; break;
+    case CSR_MEPC: state.mepc = val & ~(reg_t)1; break;
     case CSR_MTVEC: state.mtvec = val & ~(reg_t)2; break;
     case CSR_MSCRATCH: state.mscratch = val; break;
     case CSR_MCAUSE: state.mcause = val; break;
-    case CSR_MBADADDR: state.mbadaddr = val; break;
+    case CSR_MTVAL: state.mtval = val; break;
     case CSR_MISA: {
+      // the write is ignored if increasing IALIGN would misalign the PC
+      if (!(val & (1L << ('C' - 'A'))) && (state.pc & 2))
+        break;
+
       if (!(val & (1L << ('F' - 'A'))))
         val &= ~(1L << ('D' - 'A'));
 
@@ -432,7 +466,7 @@ void processor_t::set_csr(int which, reg_t val)
       mask |= 1L << ('C' - 'A');
       mask &= max_isa;
 
-      isa = (val & mask) | (isa & ~mask);
+      state.misa = (val & mask) | (state.misa & ~mask);
       break;
     }
     case CSR_TSELECT:
@@ -484,7 +518,7 @@ void processor_t::set_csr(int which, reg_t val)
       state.dcsr.halt = get_field(val, DCSR_HALT);
       break;
     case CSR_DPC:
-      state.dpc = val;
+      state.dpc = val & ~(reg_t)1;
       break;
     case CSR_DSCRATCH:
       state.dscratch = val;
@@ -539,6 +573,11 @@ reg_t processor_t::get_csr(int which)
     case CSR_MINSTRET:
     case CSR_MCYCLE:
       return state.minstret;
+    case CSR_INSTRETH:
+    case CSR_CYCLEH:
+      if (ctr_ok && xlen == 32)
+        return state.minstret >> 32;
+      break;
     case CSR_MINSTRETH:
     case CSR_MCYCLEH:
       if (xlen == 32)
@@ -557,26 +596,26 @@ reg_t processor_t::get_csr(int which)
     }
     case CSR_SIP: return state.mip & state.mideleg;
     case CSR_SIE: return state.mie & state.mideleg;
-    case CSR_SEPC: return state.sepc;
-    case CSR_SBADADDR: return state.sbadaddr;
+    case CSR_SEPC: return state.sepc & pc_alignment_mask();
+    case CSR_STVAL: return state.stval;
     case CSR_STVEC: return state.stvec;
     case CSR_SCAUSE:
       if (max_xlen > xlen)
         return state.scause | ((state.scause >> (max_xlen-1)) << (xlen-1));
       return state.scause;
-    case CSR_SPTBR:
+    case CSR_SATP:
       if (get_field(state.mstatus, MSTATUS_TVM))
         require_privilege(PRV_M);
-      return state.sptbr;
+      return state.satp;
     case CSR_SSCRATCH: return state.sscratch;
     case CSR_MSTATUS: return state.mstatus;
     case CSR_MIP: return state.mip;
     case CSR_MIE: return state.mie;
-    case CSR_MEPC: return state.mepc;
+    case CSR_MEPC: return state.mepc & pc_alignment_mask();
     case CSR_MSCRATCH: return state.mscratch;
     case CSR_MCAUSE: return state.mcause;
-    case CSR_MBADADDR: return state.mbadaddr;
-    case CSR_MISA: return isa;
+    case CSR_MTVAL: return state.mtval;
+    case CSR_MISA: return state.misa;
     case CSR_MARCHID: return 0;
     case CSR_MIMPID: return 0;
     case CSR_MVENDORID: return 0;
@@ -633,7 +672,7 @@ reg_t processor_t::get_csr(int which)
         return v;
       }
     case CSR_DPC:
-      return state.dpc;
+      return state.dpc & pc_alignment_mask();
     case CSR_DSCRATCH:
       return state.dscratch;
   }

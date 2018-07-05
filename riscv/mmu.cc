@@ -4,7 +4,7 @@
 #include "sim.h"
 #include "processor.h"
 
-mmu_t::mmu_t(sim_t* sim, processor_t* proc)
+mmu_t::mmu_t(simif_t* sim, processor_t* proc)
  : sim(sim), proc(proc),
   check_triggers_fetch(false),
   check_triggers_load(false),
@@ -160,7 +160,7 @@ tlb_entry_t mmu_t::refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_
 
 reg_t mmu_t::walk(reg_t addr, access_type type, reg_t mode)
 {
-  vm_info vm = decode_vm_info(proc->max_xlen, mode, proc->get_state()->sptbr);
+  vm_info vm = decode_vm_info(proc->max_xlen, mode, proc->get_state()->satp);
   if (vm.levels == 0)
     return addr & ((reg_t(2) << (proc->xlen-1))-1); // zero-extend from xlen
 
@@ -183,14 +183,15 @@ reg_t mmu_t::walk(reg_t addr, access_type type, reg_t mode)
     // check that physical address of PTE is legal
     auto ppte = sim->addr_to_mem(base + idx * vm.ptesize);
     if (!ppte)
-      throw trap_load_access_fault(addr);
+      goto fail_access;
 
     reg_t pte = vm.ptesize == 4 ? *(uint32_t*)ppte : *(uint64_t*)ppte;
     reg_t ppn = pte >> PTE_PPN_SHIFT;
 
     /* Check for remote page */
     if (pte_is_remote(pte)) {
-      pfa_err_t pfa_res = sim->pfa->fetch_page(addr, (reg_t*)ppte);
+      sim_t *psim = dynamic_cast<sim_t *>(sim);
+      pfa_err_t pfa_res = psim->pfa->fetch_page(addr, (reg_t*)ppte);
       switch(pfa_res) {
         /* PFA fetched the page, resume normal MMU operation */
         case PFA_OK:
@@ -248,6 +249,14 @@ fail:
     case FETCH: throw trap_instruction_page_fault(addr);
     case LOAD: throw trap_load_page_fault(addr);
     case STORE: throw trap_store_page_fault(addr);
+    default: abort();
+  }
+
+fail_access:
+  switch (type) {
+    case FETCH: throw trap_instruction_access_fault(addr);
+    case LOAD: throw trap_load_access_fault(addr);
+    case STORE: throw trap_store_access_fault(addr);
     default: abort();
   }
 }
