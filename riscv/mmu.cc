@@ -205,7 +205,7 @@ reg_t mmu_t::walk(reg_t addr, access_type type, reg_t mode)
 
         /* Illegal behavior error, throw error to OS */
         case PFA_NO_PAGE:
-          pfa_err("couldn't find vaddr (0x%lx) but it was marked remote!\n", addr);
+          pfa_err("couldn't find page at vaddr (0x%lx) but it was marked remote!\n", addr & PGMASK);
           throw trap_load_access_fault(addr);
 
         case PFA_ERR:
