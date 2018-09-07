@@ -121,13 +121,13 @@ bool memblade_t::send_request(uint8_t *bytes)
 
 bool memblade_t::page_read(void) 
 {
-  memblade_info("Page Read (dst=%lx, pageno=%lx, txid=%u)\n",
+  memblade_info("Page Read (dst=0x%lx, pageno=0x%lx, txid=%u)\n",
       dst, pageno, txid);
 
   /* Get the destination on the client */
   void *client_page = (void*)sim->addr_to_mem(dst);
   if(client_page == NULL) {
-    memblade_err("Invalid destination address: %lx\n", dst);
+    memblade_err("Invalid destination address: 0x%lx\n", dst);
     return false;
   }
   
@@ -146,15 +146,16 @@ bool memblade_t::page_read(void)
 
 bool memblade_t::page_write(void)
 {
-  memblade_info("Page Write (src=%lx, pageno=%lx, txid=%u)\n",
+  memblade_info("Page Write (src=0x%lx, pageno=0x%lx, txid=%u)\n",
       src, pageno, txid);
 
   uint8_t *rpage = NULL; // remote page
   uint8_t *lpage = NULL; // local page
 
+
   lpage = (uint8_t*)sim->addr_to_mem(src);
   if(lpage == NULL) {
-    memblade_err("Invalid src address for page write: %lx\n", src);
+    memblade_err("Invalid src address for page write: 0x%lx\n", src);
     return false;
   }
 
@@ -178,13 +179,13 @@ bool memblade_t::word_read(void)
   ext.sz = mb_ext_sz(extdata);
   ext.off = mb_ext_off(extdata);
  
-  memblade_info("Word Read (size=%u, offset=%u, pageno=%lx, txid=%u)\n",
+  memblade_info("Word Read (size=%u, offset=%u, pageno=0x%lx, txid=%u)\n",
       ext.sz, ext.off, pageno, txid);
 
   /* Get the destination on the client*/
   uint8_t *host_dst = ((uint8_t*)sim->addr_to_mem(dst));
   if(host_dst == NULL) {
-    memblade_err("Invalid destination address: %lx\n", dst);
+    memblade_err("Invalid destination address: 0x%lx\n", dst);
     return false;
   } 
 
@@ -209,7 +210,7 @@ bool memblade_t::word_write(void)
   ext.off = mb_ext_off(extdata);
   ext.value = extdata[1];
  
-  memblade_info("Word Write (size=%u, offset=%u, value=%lu, pageno=%lx, txid=%u)\n",
+  memblade_info("Word Write (size=%u, offset=%u, value=%lu, pageno=0x%lx, txid=%u)\n",
       ext.sz, ext.off, ext.value, pageno, txid);
 
   /* Use existing remote page (if it exists) or allocate new one*/
@@ -234,7 +235,7 @@ bool memblade_t::atomic_add(void)
   ext.off = mb_ext_off(extdata);
   ext.value = extdata[1];
  
-  memblade_info("Atomic Add (size=%u, offset=%u, value=%lu, pageno=%lx, txid=%u)\n",
+  memblade_info("Atomic Add (size=%u, offset=%u, value=%lu, pageno=0x%lx, txid=%u)\n",
       ext.sz, ext.off, ext.value, pageno, txid);
 
   /* Use existing remote page (if it exists) or allocate new one*/
@@ -250,7 +251,7 @@ bool memblade_t::atomic_add(void)
   /* Get the destination on the client*/
   uint8_t *host_dst = ((uint8_t*)sim->addr_to_mem(dst));
   if(host_dst == NULL) {
-    memblade_err("Invalid destination address: %lx\n", dst);
+    memblade_err("Invalid destination address: 0x%lx\n", dst);
     return false;
   } 
 
@@ -310,7 +311,7 @@ bool memblade_t::comp_swap(void)
   ext.value = extdata[1];
   ext.compValue = extdata[2];
  
-  memblade_info("Comp_Swap (size=%u, offset=%u, value=%lu, compValueue=%lu, pageno=%lx, txid=%u)\n",
+  memblade_info("Comp_Swap (size=%u, offset=%u, value=%lu, compValueue=%lu, pageno=0x%lx, txid=%u)\n",
       ext.sz, ext.off, ext.value, ext.compValue, pageno, txid);
 
   /* Use existing remote page (if it exists) or allocate new one*/
@@ -326,7 +327,7 @@ bool memblade_t::comp_swap(void)
   /* Get the destination on the client*/
   uint8_t *host_dst = ((uint8_t*)sim->addr_to_mem(dst));
   if(host_dst == NULL) {
-    memblade_err("Invalid destination address: %lx\n", dst);
+    memblade_err("Invalid destination address: 0x%lx\n", dst);
     return false;
   }
 

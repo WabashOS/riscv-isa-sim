@@ -5,8 +5,8 @@
 #include "encoding.h"
 #include "stdint.h"
 
-#define memblade_info(M, ...) fprintf(stderr, "SPIKE Memblade: " M, ##__VA_ARGS__)
-// #define memblade_info(M, ...)
+// #define memblade_info(M, ...) fprintf(stderr, "SPIKE Memblade: " M, ##__VA_ARGS__)
+#define memblade_info(M, ...)
 
 #define memblade_err(M, ...) fprintf(stderr, "SPIKE Memblade: " M, ##__VA_ARGS__)
 

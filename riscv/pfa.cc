@@ -110,7 +110,7 @@ pfa_err_t pfa_t::fetch_page(reg_t vaddr, reg_t *host_pte)
   rmem_t::iterator ri = rmem.find(rem_ppn);
   if(ri == rmem.end()) {
     /* not found */
-    pfa_err("Requested (vaddr=0x%lx, pgid=0x%lx) not in remote memory\n", vaddr, pageid);
+    pfa_err("Requested (vaddr=0x%lx, pgid=0x%lx, rpn=0x%lx) not in remote memory\n", vaddr, pageid, rem_ppn);
     return PFA_NO_PAGE;
   }
 
@@ -227,7 +227,7 @@ bool pfa_t::evict_page(const uint8_t *bytes)
 
   eviction_in_progress = true;
   eviction_rem_ppn = rem_ppn;
-  pfa_info("Evicting page at (paddr=0x%lx) (remote ppn=%lx)\n", paddr, rem_ppn);
+  pfa_info("Evicting page at (paddr=0x%lx) (rpn=0x%lx)\n", paddr, rem_ppn);
 
   return true;
 }
