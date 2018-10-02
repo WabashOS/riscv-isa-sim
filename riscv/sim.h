@@ -9,6 +9,7 @@
 #include "pfa.h"
 #include "memblade.h"
 #include "nic.h"
+#include "simif.h"
 #include <fesvr/htif.h>
 #include <fesvr/context.h>
 #include <vector>
@@ -19,12 +20,13 @@ class mmu_t;
 class remote_bitbang_t;
 
 // this class encapsulates the processors and memory in a RISC-V machine.
-class sim_t : public htif_t
+class sim_t : public htif_t, public simif_t
 {
 public:
   sim_t(const char* isa, size_t _nprocs,  bool halted, reg_t start_pc,
         std::vector<std::pair<reg_t, mem_t*>> mems,
-        const std::vector<std::string>& args);
+        const std::vector<std::string>& args, const std::vector<int> hartids,
+        unsigned progsize, unsigned max_bus_master_bits, bool require_authentication);
   ~sim_t();
 
   // run the simulation to completion
@@ -33,6 +35,9 @@ public:
   void set_log(bool value);
   void set_histogram(bool value);
   void set_procs_debug(bool value);
+  void set_dtb_enabled(bool value) {
+    this->dtb_enabled = value;
+  }
   void set_remote_bitbang(remote_bitbang_t* remote_bitbang) {
     this->remote_bitbang = remote_bitbang;
   }
@@ -40,7 +45,8 @@ public:
   processor_t* get_core(size_t i) { return procs.at(i); }
   unsigned nprocs() const { return procs.size(); }
 
-  debug_module_t debug_module;
+  // Callback for processors to let the simulation know they were reset.
+  void proc_reset(unsigned id);
 
 private:
   std::vector<std::pair<reg_t, mem_t*>> mems;
@@ -65,6 +71,7 @@ private:
   bool debug;
   bool log;
   bool histogram_enabled; // provide a histogram of PCs
+  bool dtb_enabled;
   remote_bitbang_t* remote_bitbang;
 
   // memory-mapped I/O routines
@@ -100,6 +107,7 @@ private:
   /* pfa_t needs access to host memory */
   friend class pfa_t;
   friend class memblade_t;
+  friend class debug_module_t;
 
   // htif
   friend void sim_thread_main(void*);
@@ -113,6 +121,12 @@ private:
   void write_chunk(addr_t taddr, size_t len, const void* src);
   size_t chunk_align() { return 8; }
   size_t chunk_max_size() { return 8; }
+
+public:
+  // Initialize this after procs, because in debug_module_t::reset() we
+  // enumerate processors, which segfaults if procs hasn't been initialized
+  // yet.
+  debug_module_t debug_module;
 };
 
 extern volatile bool ctrlc_pressed;
