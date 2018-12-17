@@ -5,4 +5,3 @@ if (write) {
   p->set_csr(csr, old | insn.rs1());
 }
 WRITE_RD(sext_xlen(old));
-serialize();

@@ -29,7 +29,6 @@ class cache_sim_t
   void access(uint64_t addr, size_t bytes, bool store);
   void print_stats();
   void set_miss_handler(cache_sim_t* mh) { miss_handler = mh; }
-  void set_log(bool _log) { log = _log; }
 
   static cache_sim_t* construct(const char* config, const char* name);
 
@@ -59,7 +58,6 @@ class cache_sim_t
   uint64_t writebacks;
 
   std::string name;
-  bool log;
 
   void init();
 };
@@ -89,10 +87,6 @@ class cache_memtracer_t : public memtracer_t
   void set_miss_handler(cache_sim_t* mh)
   {
     cache->set_miss_handler(mh);
-  }
-  void set_log(bool log)
-  {
-    cache->set_log(log);
   }
 
  protected:

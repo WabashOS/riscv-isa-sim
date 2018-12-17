@@ -14,8 +14,7 @@
 enum {
   IR_IDCODE=1,
   IR_DTMCONTROL=0x10,
-  IR_DBUS=0x11,
-  IR_RESET=0x1c
+  IR_DBUS=0x11
 };
 
 #define DTMCONTROL_VERSION      0xf
@@ -105,11 +104,8 @@ void jtag_dtm_t::set_pins(bool tck, bool tms, bool tdi) {
       case SHIFT_IR:
         _tdo = ir & 1;
         break;
-      //case UPDATE_IR:
-        //if (ir == IR_RESET) {
-          // Make a reset happen
-        //}
-        //break;
+      case UPDATE_IR:
+        break;
       default:
         break;
     }

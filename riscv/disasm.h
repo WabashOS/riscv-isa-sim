@@ -10,7 +10,6 @@
 
 extern const char* xpr_name[NXPR];
 extern const char* fpr_name[NFPR];
-extern const char* csr_name(int which);
 
 class arg_t
 {
