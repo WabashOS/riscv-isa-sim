@@ -30,10 +30,12 @@ extern const char* const _pfa_port_names[];
 #define PFA_PORT_NAME(PORT) _pfa_port_names[PORT / 8]
 
 /* PFA Sizing */
-#define PFA_FREE_MAX  256
+// #define PFA_FREE_MAX  256
+#define PFA_FREE_MAX  64
 #define PFA_NEW_MAX   PFA_FREE_MAX
 /* We currently can't model multiple outstanding evictions in spike */
-#define PFA_EVICT_MAX 256
+// #define PFA_EVICT_MAX 256
+#define PFA_EVICT_MAX 64
 
 typedef uint64_t pgid_t;
 // How many bits in the PPN component of a page ID (these are in the lsbs) 
